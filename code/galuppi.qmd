@@ -17,11 +17,13 @@ editor_options:
 # everything below (figures, paper numbers) are not. cache.extra removes the
 # whole cache when the methods or the cleaned data change.
 # md5 hashes at the clean rerun backing the reported numbers:
-# methods.R  2710cdeb8d8f6502ebfd0e7d53ffa4d1
-# gp.csv     122e6441195895126aad49d6d4e14c7f
+# gp.csv 122e6441195895126aad49d6d4e14c7f
 # gp_multi.csv a5b942006568204bada5749498fe6ef1
 # gp_ale.csv 7d35c2b74744d24ab51e98d3c3c827e9
-# TEMPORARY PIN (2026-09-04): methods.R instead of adding "methods.R" in the md5
+# methods.R c8dcf374acf57056fa67ac03e3c760eb
+# methods.R is pinned at 2710cdeb8d8f6502ebfd0e7d53ffa4d1 to avoid that
+# irrelevant changes of the methods.R file invalidating the cache
+# (e.g., spaces removal).
 knitr::opts_chunk$set(
   echo = TRUE, cache = FALSE, autodep = TRUE, cache.lazy = FALSE,
   cache.extra = c(methods.R = "2710cdeb8d8f6502ebfd0e7d53ffa4d1",
