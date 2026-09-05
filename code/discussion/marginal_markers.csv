@@ -1,0 +1,268 @@
+"problem","class","term","estimate","z_value"
+"ale","Davide Perez","SoundVa_LowestNoteIndex",0.200340231627036,3.83790693927913
+"ale","Niccolò Jommelli","PartBs_Degree3_Per_relative",-0.187761495392459,-3.77431420302894
+"ale","Niccolò Jommelli","Harmony_Key_Modulatory_iii",-0.232165600945377,-3.77326479112468
+"ale","Domenico Natale Sarro","PartVnI_DynMean",-0.177521549019828,-3.74265080298229
+"ale","Davide Perez","Harmony_Chords_Grouping_2T_Per",0.153625023873563,3.5421380604852
+"ale","Davide Perez","Harmony_Chords_Grouping_2SD_Per",-0.132284307691895,-3.50856142143878
+"ale","Michele Caballone","Score_IntervalsPerfectDesc_Per",-0.084227290119276,-3.35788015875951
+"ale","Niccolò Jommelli","PartHnI_IntervalsPerfectDesc_Per",0.145437601942788,3.32869360911065
+"ale","Michele Caballone","SoundBs_AscendingIntervallicStd",-0.104950239965926,-3.29168587807918
+"ale","Baldassare Galuppi","PartBs_Degree1_Per_relative",-0.130283599327866,-3.2750369496308
+"ale","Niccolò Jommelli","Score_Degree6_Per_relative",0.131432314418217,3.25616600756392
+"ale","Niccolò Jommelli","Score_AbsoluteIntervallicTrimDiff",0.115192086636697,3.2555709750228
+"ale","Davide Perez","SoundVa_DescendingIntervallicStd",-0.115548179173075,-3.23534943680318
+"ale","Michele Caballone","SoundBs_DescendingIntervallicStd",-0.125036548237446,-3.17520406697531
+"ale","Baldassare Galuppi","PartBs_Degree4_Per_relative",0.15275505748531,3.04933096600306
+"ale","Davide Perez","SoundVa_IntervalP.4_Per",0.152229689173424,3.04648714196063
+"ale","Davide Perez","PartBs_Degree6_Per_relative",-0.136020425763789,-3.03335369615282
+"ale","Davide Perez","PartBs_Degree2_Per_relative",-0.13815636009399,-2.96459023981953
+"ale","Davide Perez","Harmony_Key_Modulatory_vi",-0.151625006572906,-2.89599276568902
+"ale","Domenico Natale Sarro","Harmony_Key_V_PercentageMeasures",-0.113520793807609,-2.83015745023348
+"ale","Davide Perez","PartVnII_Degree5_Per_relative",-0.124419210306855,-2.82563792395233
+"ale","Davide Perez","PartVnI_IntervalsMajorAll_Per",-0.118152934611986,-2.81183352172181
+"ale","Davide Perez","PartVn_Degree1_Per_relative",0.117170343681534,2.75890690869006
+"ale","Domenico Natale Sarro","SoundBs_Intervalm2_Per",-0.103612439314627,-2.69073566373975
+"ale","Baldassare Galuppi","Score_SyllabicRatio",-0.153277665926942,-2.68466813973774
+"ale","Baldassare Galuppi","PartVnII_DescendingIntervallicMean",0.0868704570931017,2.67552797450012
+"ale","Niccolò Jommelli","PartBs_Degree1_Per_relative",0.110370204119912,2.66148529860354
+"ale","Domenico Natale Sarro","Score_IntervalA1_Per",-0.10066212483745,-2.64005183259008
+"ale","Niccolò Jommelli","PartBs_DynGrad",0.142439073420182,2.6346154484304
+"ale","Niccolò Jommelli","Harmony_Numerals_vii_Per",0.101668303047144,2.61799973930182
+"ale","Niccolò Jommelli","Score_Degree3_Per_relative",-0.114539087215028,-2.60498741772459
+"ale","Baldassare Galuppi","PartBs_Degreeb3_Per_relative",0.153279979368521,2.59721186108687
+"ale","Davide Perez","Score_Degree6_Per_relative",-0.102817312451297,-2.55364245816172
+"ale","Baldassare Galuppi","SoundBs_Ambitus",0.111589538533111,2.54401011475066
+"ale","Baldassare Galuppi","Score_Degree1_Per_relative",-0.0990794741891032,-2.53751368878103
+"ale","Davide Perez","Harmony_Chord_vi_Per",-0.124330810171406,-2.52042081357076
+"ale","Baldassare Galuppi","PartVnII_DottedRhythm",0.148187530994232,2.50326704982997
+"ale","Baldassare Galuppi","FamilyVoice_Density",-0.109364967554419,-2.49899002470866
+"ale","Michele Caballone","SoundSop_IntervallicSkewness",0.113972144213029,2.49347947676874
+"ale","Davide Perez","Score_AbsoluteIntervallicTrimDiff",-0.0746094524980596,-2.46428279612415
+"ale","Niccolò Jommelli","SoundVa_IntervalM.2_Per",0.106725078220121,2.45423446181308
+"ale","Davide Perez","PartBs_Degree5_Per_relative",0.106584258389076,2.4510304098863
+"ale","Davide Perez","PartVnII_IntervalP.4_Per",0.104118175085475,2.4381095240368
+"ale","Davide Perez","PartVnII_DynGrad",0.128595643981813,2.42358815392767
+"ale","Baldassare Galuppi","SoundSop_Intervald.5_Per",0.119688230439409,2.39534881150732
+"ale","Gaetano Maria Schiassi","SoundAlt_IntervalsWithinOctaveAll_Per",0.094807056486113,2.39517311914806
+"ale","Michele Caballone","Score_Degree4_Per_relative",0.0914062065924257,2.38744209904827
+"ale","Davide Perez","PartVn_Degree6_Per_relative",-0.109869069827442,-2.3857924219563
+"ale","Baldassare Galuppi","Harmony_Key_Modulatory_iii",0.150655692823522,2.37500079915554
+"ale","Domenico Natale Sarro","FamilyVoice_Ambitus",-0.095792143296742,-2.36397577486001
+"ale","Niccolò Jommelli","PartVn_Degree6_Per_relative",0.113671726193757,2.36219936132054
+"ale","Gaetano Maria Schiassi","Score_Degree.4_Per_relative",0.0788227042684764,2.33073517314411
+"ale","Gaetano Maria Schiassi","SoundBs_IntervallicSkewness",-0.0870501881205888,-2.33012322334661
+"ale","Gaetano Maria Schiassi","PartVnI_IntervalP.8_Per",0.084118289054221,2.31080436784774
+"ale","Baldassare Galuppi","SoundVa_LowestNoteIndex",-0.122419126998865,-2.30015058632979
+"ale","Michele Caballone","PartVnI_Acc_avg_abs_step_0.125",0.0849530577329634,2.29551861000409
+"ale","Baldassare Galuppi","dum_Tempo_Andante",0.135668977561106,2.29162405820387
+"ale","Davide Perez","PartHnII_Intervalm3_Per",0.107749548217235,2.28443668081097
+"ale","Baldassare Galuppi","PartVnI_Degree1_Per_relative",-0.103599280677839,-2.27700593552102
+"ale","Davide Perez","Score_Degree1_Per_relative",0.0887329795901618,2.2724461578973
+"ale","Niccolò Jommelli","PartVnII_DottedRhythm",-0.127274719062667,-2.25875958085323
+"ale","Baldassare Galuppi","Score_Degree3_Per_relative",0.098144206652631,2.23577157426199
+"ale","Gaetano Maria Schiassi","Harmony_Additions_4_6_64",-0.0889121675973528,-2.2297012658351
+"ale","Baldassare Galuppi","Score_IntervalP4_Per",0.0760994790811656,2.22878959194775
+"ale","Niccolò Jommelli","Harmony_Chord_iio_Per",-0.114658707823177,-2.21930323389636
+"ale","Domenico Natale Sarro","SoundVa_IntervalA1_Per",-0.0959270225274067,-2.21713685812805
+"ale","Baldassare Galuppi","SoundVa_IntervalP4_Per",0.096168548396508,2.21666221626873
+"ale","Domenico Natale Sarro","SoundVa_IntervallicSkewness",0.078170012629192,2.2138259187121
+"ale","Baldassare Galuppi","Harmony_Chords_Grouping_1sd_Per",0.0825789735183474,2.21217226666483
+"ale","Niccolò Jommelli","SoundVa_IntervalM2_Per",0.11156662616694,2.20082113354278
+"ale","Davide Perez","SoundVa_Intervalm6_Per",0.12089899002293,2.20016340483855
+"ale","Michele Caballone","PartObI_IntervalM3_Per",0.0872538347398869,2.18897567145213
+"ale","Michele Caballone","PartVa_Degree7_Per_relative",-0.0946021074520281,-2.18893184939828
+"ale","Davide Perez","PartVnI_Degree7_Per_relative",-0.0994291509055537,-2.18421469942738
+"ale","Niccolò Jommelli","PartObI_IntervalM3_Per",-0.0843507700596859,-2.18091708222978
+"ale","Gaetano Maria Schiassi","SoundVa_IntervalsMinorDesc_Per",-0.0613341567552768,-2.17599817313224
+"ale","Domenico Natale Sarro","PartBs_DynGrad",-0.0903884578394379,-2.1679354551784
+"ale","Niccolò Jommelli","Harmony_Key_IV_PercentageMeasures",0.132538679292322,2.16491066400547
+"ale","Baldassare Galuppi","PartHnI_IntervalM3_Per",0.0972177513906847,2.13522329624876
+"ale","Domenico Natale Sarro","Harmony_Chord_iv_Per",0.0814395526653786,2.13518408047479
+"ale","Michele Caballone","SoundVa_IntervalP.4_Per",-0.0878216613451391,-2.13367813072995
+"ale","Baldassare Galuppi","Harmony_Chords_Grouping_2SD_Per",0.0811457982178008,2.1229791506352
+"ale","Michele Caballone","dum_TempoGrouped2_X",0.115698567638212,2.11953249151617
+"ale","Michele Caballone","PartVnII_IntervalsPerfectDesc_Per",-0.0728615160028198,-2.11784383510267
+"ale","Niccolò Jommelli","Score_IntervalA1_Per",0.0922323823386668,2.11674391837726
+"ale","Domenico Natale Sarro","Score_IntervalP4_Per",0.0650814083696685,2.10962557871869
+"ale","Davide Perez","PartVnI_Degree3_Per_relative",0.106120991123642,2.1083847673595
+"ale","Michele Caballone","PartBs_DynGrad",-0.0976224578040948,-2.10295824600038
+"ale","Baldassare Galuppi","SoundVa_IntervalsPerfectAsc_Per",0.0630063805065941,2.09415494471644
+"ale","Baldassare Galuppi","Harmony_Key_IV_PercentageMeasures",-0.125110667473499,-2.09243512495518
+"ale","Niccolò Jommelli","SoundVn_Ambitus",0.0900180047650345,2.08570231140194
+"ale","Domenico Natale Sarro","PartVa_DynMean",-0.0847926060207944,-2.08152299213386
+"ale","Baldassare Galuppi","PartVnI_Degree5_Per_relative",0.104673063348859,2.07657869801622
+"ale","Michele Caballone","SoundBs_DescendingIntervallicMean",0.0720843417764679,2.07424565848651
+"ale","Gaetano Maria Schiassi","SoundBs_LargestSemitonesAsc",-0.0702606212261047,-2.0732252361767
+"ale","Baldassare Galuppi","SoundVa_DescendingIntervallicStd",0.0726364169948232,2.06822204598402
+"ale","Baldassare Galuppi","PartBs_DynMean",-0.112065362577865,-2.05903528121226
+"ale","Niccolò Jommelli","PartHnII_IntervalP4_Per",-0.091655639527632,-2.04671379856562
+"ale","Domenico Natale Sarro","PartVnII_DynGrad",-0.0881925906819617,-2.04218795688646
+"ale","Baldassare Galuppi","SoundVa_IntervalM.2_Per",-0.0881002078698742,-2.04127107519878
+"ale","Michele Caballone","SoundBs_AbsoluteIntervallicTrimDiff",-0.0785936044042125,-2.03823817158009
+"ale","Niccolò Jommelli","PartVnII_IntervalM9_Per",0.13116400242486,2.03565978707803
+"ale","Baldassare Galuppi","dum_TimeSignature_X4.4",-0.0885500244997965,-2.0339699033308
+"ale","Baldassare Galuppi","PartVnII_Intervalm.6_Per",-0.103661969733649,-2.03196484863924
+"ale","Michele Caballone","dum_Instrumentation_vn.va.bs",-0.0596630850428572,-2.01842323023031
+"ale","Niccolò Jommelli","PartHnII_Degree5_Per_relative",0.0838802279329232,2.01322346687269
+"ale","Davide Perez","FamilyVoice_Density",0.0887654720655811,2.01277396990183
+"ale","Domenico Natale Sarro","PartVnII_Degree.3_Per_relative",0.0986963531254005,2.01067225952378
+"ale","Davide Perez","PartVa_Degree5_Per_relative",0.0906875931625364,2.00200145640339
+"ale","Michele Caballone","PartHnI_Intervalm.2_Per",-0.0834955581507943,-1.99762759471319
+"ale","Baldassare Galuppi","PartObII_IntervalP4_Per",0.0875489116625493,1.9902388911018
+"ale","Gaetano Maria Schiassi","SoundBs_HighestNoteIndex",-0.0744852031363585,-1.97017131846748
+"ale","Michele Caballone","PartVnI_IntervalsPerfectDesc_Per",-0.0657784430841786,-1.96755420779263
+"binary",NA,"SoundVa_IntervalM2_Per",-0.058588557411195,-3.04902953003635
+"binary",NA,"PartHnII_IntervalP.8_Per",-0.0685538314062336,-3.04054765052485
+"binary",NA,"Score_AbsoluteIntervallicStd",-0.0340912735364513,-3.00691040651841
+"binary",NA,"Harmony_Key_iii_PercentageMeasures",-0.0797526750907681,-2.97618057814793
+"binary",NA,"Score_AbsoluteIntervallicTrimDiff",-0.0445481052884658,-2.94841431624294
+"binary",NA,"PartHnII_IntervalP8_Per",-0.0659185557188633,-2.92779428748398
+"binary",NA,"dum_Tempo_Andante",-0.072819959813399,-2.92131271503785
+"binary",NA,"Score_Degree2_Per_relative",-0.0569636577212505,-2.88241024005631
+"binary",NA,"SoundBs_HighestNoteIndex",-0.0663278223850082,-2.8542663221268
+"binary",NA,"Score_Degree.4_Per_relative",-0.0549312758593237,-2.75131888524737
+"binary",NA,"SoundVa_Intervalm.6_Per",0.0658257995637227,2.74984748152776
+"binary",NA,"PartVnI_Degree1_Per_relative",0.0610326149673766,2.74304314020536
+"binary",NA,"Harmony_Chord_types_major.triad",0.0433051716163866,2.66080385115311
+"binary",NA,"Score_DynMean_weighted",0.0548985140155737,2.65767225722051
+"binary",NA,"Score_IntervalP8_Per",-0.0393063628556729,-2.6196541091584
+"binary",NA,"PartVnI_Degree3_Per_relative",0.0562698951490215,2.56707499441584
+"binary",NA,"PartVnI_Degree7_Per_relative",-0.0552143732874669,-2.52359660976185
+"binary",NA,"PartObII_IntervalP4_Per",-0.0429348109759942,-2.47067081306307
+"binary",NA,"PartHnII_IntervalM3_Per",0.0488610815747303,2.42179235307598
+"binary",NA,"PartVnII_Degree3_Per_relative",0.0541877849057694,2.37826813915866
+"binary",NA,"PartHnII_Intervalm3_Per",0.0469487786024329,2.34127861103713
+"binary",NA,"PartBs_Degree4_Per_relative",-0.0493725132593536,-2.31418448249902
+"binary",NA,"SoundVa_IntervalP5_Per",0.0531713411559632,2.3092382861734
+"binary",NA,"SoundBs_DescendingIntervallicStd",-0.0433203374676185,-2.28776948715991
+"binary",NA,"SoundSop_Intervalm3_Per",0.0437780516126264,2.27972275636724
+"binary",NA,"PartVa_Degree2_Per_relative",-0.0533510343275475,-2.26115366491287
+"binary",NA,"PartVnI_IntervalsMajorAsc_Per",-0.0469502690181927,-2.25573189852696
+"binary",NA,"SoundVa_HighestNoteIndex",-0.0561961569808582,-2.2517317219528
+"binary",NA,"NumericTempo",0.0513516555319852,2.25062026156466
+"binary",NA,"SoundVa_LargestSemitonesAsc",-0.0493913890383419,-2.24199851304599
+"binary",NA,"PartVnI_IntervalM3_Per",0.050997566035701,2.22311749745473
+"binary",NA,"PartVnII_DynGrad",0.0520141430571024,2.21374400870245
+"binary",NA,"Harmony_Key_Modulatory_vi",-0.0554530502994837,-2.186391462007
+"binary",NA,"SoundOb_IntervalM7_Per",-0.0524497702045816,-2.16813868691605
+"binary",NA,"PartBs_Degree5_Per_relative",0.0472560592229089,2.16686543578339
+"binary",NA,"PartVa_Degree5_Per_relative",0.0499631235501603,2.15508369158054
+"binary",NA,"SoundBs_IntervalP.5_Per",0.0477165245436729,2.15359275770837
+"binary",NA,"Harmony_Chord_IV_Per",-0.0467061375321061,-2.15027699735334
+"binary",NA,"PartBs_DynMean",0.0515200418716309,2.14399657726089
+"binary",NA,"Score_DescendingIntervallicStd",-0.0307380442668086,-2.12062116892475
+"binary",NA,"SoundVa_IntervalP8_Per",-0.0381338095167796,-2.10321003836404
+"binary",NA,"PartVnI_Degree.4_Per_relative",-0.0487782085437391,-2.08374145149566
+"binary",NA,"dum_TempoGrouped1_Andante",-0.0508333377512474,-2.08114329806133
+"binary",NA,"PartVa_DynMean",0.0488158680454771,2.07733589645828
+"binary",NA,"PartHnII_IntervalP4_Per",-0.0375287200123127,-2.06174260662647
+"binary",NA,"SoundHn_IntervalP.5_Per",-0.037405711089555,-2.05193694220674
+"binary",NA,"SoundSop_IntervalA2_Per",0.0491208122434618,2.05012474683258
+"binary",NA,"SoundVa_IntervallicTrimDiff",0.0404374085806946,2.0379557752312
+"binary",NA,"SoundVa_AbsoluteIntervallicTrimDiff",-0.0407701110426279,-2.01564067640439
+"binary",NA,"PartVnII_Degree.6_Per_relative",-0.0486279728724649,-2.01446726796061
+"binary",NA,"PartVnII_Degree.4_Per_relative",-0.0448932995631424,-1.9845774942229
+"binary",NA,"SoundVa_AbsoluteIntervallicKurtosis",-0.0380728085906229,-1.97469993133769
+"binary",NA,"PartVnI.PartBs_Texture",-0.0628112080840998,-1.96641182348536
+"binary",NA,"PartVnI_Acc_avg_abs_step_4.0",0.048263499347028,1.96265452041942
+"multi","Johann Adolph Hasse","SoundVa_DescendingIntervallicMean",0.0912697828845669,3.90635341245099
+"multi","Johann Christian Bach","SoundBs_Ambitus",-0.106566785546102,-3.71941641812739
+"multi","Gennaro Manna","Score_LowestNoteIndex",-0.111307091439929,-3.66053481584026
+"multi","Johann Adolph Hasse","SoundVa_IntervalM.2_Per",0.105609449121903,3.6488620467059
+"multi","Gioacchino Cocchi","SoundVa_LowestNoteIndex",0.103839079375302,3.49131484362974
+"multi","Baldassare Galuppi","Score_DynMean_weighted",-0.0997341223773407,-3.34297971880448
+"multi","Johann Adolph Hasse","SoundVa_DescendingIntervallicStd",-0.0772531045226232,-3.27460466381252
+"multi","Baldassare Galuppi","Score_SyllabicRatio",-0.136311552042093,-3.26285206389948
+"multi","Baldassare Galuppi","PartVnI_DottedRhythm",0.134364407988644,3.22134016137895
+"multi","Johann Adolph Hasse","Harmony_Numerals_V_Per",0.0882427035501621,3.04457106496623
+"multi","Gennaro Manna","SoundVa_LowestNoteIndex",-0.0905852192117419,-2.94307989733219
+"multi","Johann Adolph Hasse","Score_SyllabicRatio",0.123271455050921,2.9299472768321
+"multi","Johann Christian Bach","PartVnII_HighestNoteIndex",-0.088253933052405,-2.90587853489733
+"multi","Johann Adolph Hasse","Score_DynMean",0.0861198951332736,2.86290889302444
+"multi","Johann Christian Bach","PartVa_Degree1_Per_relative",0.0873704543360436,2.85039436535288
+"multi","Baldassare Galuppi","SoundBs_Ambitus",0.0903806607805333,2.84103111784278
+"multi","Baldassare Galuppi","PartBs_Degreeb3_Per_relative",0.123711812274175,2.83899836203706
+"multi","Johann Christian Bach","PartHnII_IntervalP5_Per",0.0917133309377062,2.8362476114116
+"multi","Johann Christian Bach","PartVnII_Ambitus",-0.0832503815552962,-2.81408838048337
+"multi","Baldassare Galuppi","SoundVa_DescendingIntervallicStd",0.0656325868580931,2.78130336648013
+"multi","Baldassare Galuppi","SoundBs_DescendingIntervallicStd",0.0760070017294291,2.77224524352173
+"multi","Johann Christian Bach","SoundBs_Intervalm3_Per",0.0767367778955926,2.73466448872777
+"multi","Johann Christian Bach","Harmony_HarmonicRhythm",-0.0814247787646538,-2.71906371191563
+"multi","Johann Christian Bach","PartBs_Degree1_Per_relative",0.0740269093037611,2.68593586657961
+"multi","Johann Adolph Hasse","dum_FamilyScoring_ww.voice.str",0.0725835619681314,2.66981316143792
+"multi","Johann Adolph Hasse","Harmony_Chords_Grouping_2T_Per",-0.0884473801577645,-2.61875206307298
+"multi","Baldassare Galuppi","SoundSop_Intervald.5_Per",0.103083197052289,2.59994898447315
+"multi","Johann Adolph Hasse","PartHnI_IntervalM3_Per",-0.0720252162372136,-2.59113712685105
+"multi","Baldassare Galuppi","Score_Degree4_Per_relative",-0.0814699862300608,-2.54298359812728
+"multi","Gioacchino Cocchi","Score_LowestNoteIndex",0.0728031528687439,2.5290542248582
+"multi","Baldassare Galuppi","Harmony_Chord_V7_Per",-0.0874362919793116,-2.52347296490783
+"multi","Gioacchino Cocchi","PartVa_Degree.4_Per_relative",0.0758064034721323,2.51794701321265
+"multi","Gennaro Manna","SoundVa_AscendingIntervallicStd",0.0535982381340381,2.51461079158786
+"multi","Johann Adolph Hasse","SoundVa_AbsoluteIntervallicStd",-0.0474007855139827,-2.51269223467535
+"multi","Johann Adolph Hasse","PartVa_Degree2_Per_relative",0.0895193354715197,2.46160738166832
+"multi","Johann Adolph Hasse","PartVa_Degree6_Per_relative",0.0836832715323475,2.45328709133389
+"multi","Gennaro Manna","SoundBs_HighestNoteIndex",-0.07553002725773,-2.43652342305373
+"multi","Johann Adolph Hasse","PartVnII_Degree3_Per_relative",-0.0810614741246671,-2.42785563801725
+"multi","Gioacchino Cocchi","SoundBs_IntervalA4_Per",0.0859782531587198,2.41772550467718
+"multi","Johann Adolph Hasse","SoundVa_IntervalP4_Per",-0.0792845041288312,-2.40591224501212
+"multi","Johann Adolph Hasse","SoundVa_IntervallicSkewness",0.0732870440509899,2.40289798288765
+"multi","Johann Adolph Hasse","PartVnI_DynMean_weighted",0.0839540883223994,2.37926277759967
+"multi","Johann Christian Bach","SoundBs_DescendingIntervallicStd",-0.0597544394627504,-2.36986692292982
+"multi","Johann Adolph Hasse","Harmony_Key_V_PercentageMeasures",-0.0786183178755386,-2.36886048270853
+"multi","Baldassare Galuppi","SoundBs_IntervalP.8_Per",0.0537684013474314,2.35685777016169
+"multi","Baldassare Galuppi","PartBs_Degree3_Per_relative",0.0857599780629455,2.35231120265252
+"multi","Johann Christian Bach","SoundBs_Intervalm.3_Per",0.0691236581254238,2.34124682965406
+"multi","Johann Adolph Hasse","Score_Degree2_Per_relative",0.0720411141903902,2.32858385994874
+"multi","Gioacchino Cocchi","Measures",-0.0641070078106554,-2.31787266033548
+"multi","Johann Adolph Hasse","PartHnII_Intervalm6_Per",-0.0733037650023337,-2.3040391494081
+"multi","Gioacchino Cocchi","PartVnII_DynMean",0.0591874730776054,2.2851719346312
+"multi","Baldassare Galuppi","PartVnI_Degree2_Per_relative",0.0856927518060624,2.26248805262778
+"multi","Gennaro Manna","PartBs_DynMean",-0.071429873136483,-2.26144748056544
+"multi","Gennaro Manna","SoundVa_AscendingIntervallicMean",0.0529763007173428,2.25076099701117
+"multi","Gennaro Manna","SoundBs_AscendingIntervallicStd",0.0509580256059272,2.24939691537306
+"multi","Baldassare Galuppi","SoundVa_IntervalP4_Per",0.0751616555519194,2.24465747637533
+"multi","Baldassare Galuppi","PartHnI_IntervalM3_Per",0.070548621387538,2.23454665103983
+"multi","Baldassare Galuppi","PartVnI_Degree1_Per_relative",-0.0742264914564917,-2.21259560819639
+"multi","Baldassare Galuppi","PartVnII_Degree4_Per_relative",-0.0851729058004139,-2.2085330624771
+"multi","Johann Adolph Hasse","Harmony_Chord_V7_Per",0.0765809707093823,2.19502466907051
+"multi","Johann Christian Bach","Harmony_Chord_ii7_Per",-0.0799366154556625,-2.18758294276141
+"multi","Johann Adolph Hasse","SoundVa_IntervalM2_Per",0.0741979811673854,2.17595297370897
+"multi","Johann Christian Bach","PartBs_Degree3_Per_relative",-0.0691155599629469,-2.16778407772225
+"multi","Johann Christian Bach","Harmony_Chord_V7_Per",0.0668120875302019,2.16020910879695
+"multi","Gioacchino Cocchi","PartVnII_Acc_avg_abs_step_4.0",0.0596656028850753,2.13925000999805
+"multi","Johann Christian Bach","SoundVa_LowestNoteIndex",0.0700296253579893,2.13326719157618
+"multi","Johann Adolph Hasse","SoundVa_Intervalm.2_Per",0.062333324563301,2.13260692621528
+"multi","Gennaro Manna","PartVnI_DottedRhythm",-0.0693701424168754,-2.12012510736042
+"multi","Baldassare Galuppi","Score_IntervalP.8_Per",0.0509225395541591,2.11666617534161
+"multi","Johann Adolph Hasse","SoundBs_IntervalP5_Per",0.0805898423526953,2.11307512101182
+"multi","Baldassare Galuppi","Score_Degree3_Per_relative",0.0680083931311295,2.0999522929266
+"multi","Gennaro Manna","PartVnI_DynMean_weighted",-0.0560899844204083,-2.08971434193093
+"multi","Gennaro Manna","Harmony_Key_Modulatory_IV",-0.072833365893254,-2.07410215664548
+"multi","Gennaro Manna","SoundVa_IntervalM.6_Per",0.065368178470139,2.07203838906527
+"multi","Gennaro Manna","PartHnII_AbsoluteIntervallicKurtosis",0.069730844357153,2.06744410123766
+"multi","Baldassare Galuppi","SoundVa_IntervallicTrimDiff",-0.0572295489139262,-2.06559689883995
+"multi","Johann Adolph Hasse","Score_Degree3_Per_relative",-0.0660941038278714,-2.06162060788544
+"multi","Johann Adolph Hasse","PartVnI_IntervalP.5_Per",0.0726920942295667,2.05934855798783
+"multi","Baldassare Galuppi","PartVnI_Degree4_Per_relative",-0.0776921407988274,-2.05496611841906
+"multi","Johann Adolph Hasse","PartVnII_IntervallicMean",-0.0793829337366101,-2.04870901862101
+"multi","Gioacchino Cocchi","Score_DynMean",0.0481444445007618,2.04856827376687
+"multi","Johann Adolph Hasse","PartVnII_Intervalm.3_Per",-0.0698935184078499,-2.04024561708696
+"multi","Gennaro Manna","Harmony_Numerals_V_Per",-0.0533648858278007,-2.02898784712057
+"multi","Baldassare Galuppi","PartBs_DottedRhythm",0.0848700003851373,2.02885300558618
+"multi","Gioacchino Cocchi","SoundVa_Intervalm.3_Per",0.0536236750279253,2.02842921347155
+"multi","Johann Christian Bach","Score_Degree5_Per_relative",0.057828654952398,2.02229522648505
+"multi","Baldassare Galuppi","PartVnI_IntervalP8_Per",-0.0691305488016192,-2.01185455571728
+"multi","Gennaro Manna","SoundBs_IntervalA1_Per",-0.0570901670279438,-2.01010398282858
+"multi","Gennaro Manna","SoundVa_Intervalm3_Per",-0.0541343673376628,-2.00907726943975
+"multi","Gennaro Manna","Harmony_Key_iii_PercentageMeasures",0.0842106083448208,2.00897290726374
+"multi","Baldassare Galuppi","PartVnI_Degree.1_Per_relative",0.0735506047044406,2.00783183168231
+"multi","Johann Adolph Hasse","Score_IntervalsPerfectAsc_Per",0.041516649806768,1.99944083626151
+"multi","Gennaro Manna","Score_Degree2_Per_relative",-0.0521195374198872,-1.99250510604643
+"multi","Gennaro Manna","Harmony_Numerals_.vii_Per",0.0489181361317472,1.99023572310782
+"multi","Johann Adolph Hasse","SoundBs_IntervalP.5_Per",0.0724964042478901,1.98798724164459
+"multi","Gioacchino Cocchi","PartBs_DynMean_weighted",0.0431543697281341,1.97431603437433
+"multi","Johann Adolph Hasse","dum_Tempo_Andante",-0.081412265929246,-1.97105097400947
+"multi","Johann Christian Bach","PartVnI_DottedRhythm",-0.0604130535844868,-1.9706070387369
+"multi","Johann Christian Bach","PartVnII_Degree3_Per_relative",0.0615472866382511,1.96624612784338
+"multi","Gennaro Manna","Harmony_Chords_Grouping_1sd_Per",-0.0533433654931497,-1.96231114740365

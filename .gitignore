@@ -1,0 +1,5 @@
+.DS_Store
+*.log
+
+# Raw feature extraction, not distributed (see README)
+code/extraction_*.csv

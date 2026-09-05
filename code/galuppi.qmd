@@ -1,0 +1,1532 @@
+---
+title: "Galuppi vs. Perez: attribution of three doubtful arias"
+author: "Eduardo García-Portugués"
+date: '`r Sys.Date()`'
+format:
+  html:
+    embed-resources: true
+    number-sections: true
+    toc: true
+fontsize: 10pt
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+# The modelling chunks from data-read to multi-final are cached; h2o-start and
+# everything below (figures, paper numbers) are not. cache.extra removes the
+# whole cache when the methods or the cleaned data change.
+# md5 hashes at the clean rerun backing the reported numbers:
+# methods.R  2710cdeb8d8f6502ebfd0e7d53ffa4d1
+# gp.csv     122e6441195895126aad49d6d4e14c7f
+# gp_multi.csv a5b942006568204bada5749498fe6ef1
+# gp_ale.csv 7d35c2b74744d24ab51e98d3c3c827e9
+# TEMPORARY PIN (2026-09-04): methods.R instead of adding "methods.R" in the md5
+knitr::opts_chunk$set(
+  echo = TRUE, cache = FALSE, autodep = TRUE, cache.lazy = FALSE,
+  cache.extra = c(methods.R = "2710cdeb8d8f6502ebfd0e7d53ffa4d1",
+                  tools::md5sum(c("gp.csv", "gp_multi.csv", "gp_ale.csv")))
+)
+```
+
+# Setup
+
+## Libraries and parallelization
+
+```{r libraries, message = FALSE, warning = FALSE}
+# Libraries
+library(tidyverse)
+library(tidymodels)
+library(agua)
+library(h2o)
+library(glmnet)
+
+# Parallelization cores for cv.glmnet (foreach backend) and tune_grid (future
+# plan); lambda selection is unaffected, the folds are pinned by foldid.
+# These cores are also used for the AutoML searches, which are nondeterministic.
+ncores <- 10
+doParallel::registerDoParallel(cores = ncores)
+future::plan(future::multisession, workers = ncores)
+options(future.globals.maxSize = 4e9)
+
+# AutoML search budget
+max_models_automl <- 500
+```
+
+## Methods
+
+```{r methods}
+# Load methods:
+# - Logistic ridge inference
+# - Multinomial logistic ridge inference
+# - FDR inference
+# - Recipes
+# - Resampling
+# - Model fitting
+# - Model comparison
+# - Plots
+# - Paper numbers and macros
+source("methods.R")
+```
+
+## h2o cluster
+
+```{r h2o-start}
+# Start the h2o cluster directly, as agua::h2o_start() takes no arguments.
+# Never cached: the cluster must be up on every render, including when
+# model-grid is restored from the cache.
+# The searches are nondeterministic; the run backing the reported numbers is
+# persisted to the automl_*.rds. To redo a search, delete its rds and
+# galuppi_cache/.
+
+# Two traps: address the node as 127.0.0.1, since the R client otherwise
+# builds "http://[localhost]:54321", which curl rejects as an IPv6 literal and
+# severs the connection mid-search; and switch progress reporting off, as its
+# polling trips the same REST endpoint during the long AutoML runs.
+h2o::h2o.init(ip = "127.0.0.1", port = 54321, nthreads = ncores,
+              max_mem_size = "16G")
+h2o::h2o.no_progress()
+packageVersion("h2o")
+```
+
+# Data
+
+The cleaned `gp.csv`, the aria titles in `aria_names.csv`, and the two screening corpora are built from the raw Didone extraction `extraction_2026_08_31_full_aria_merged.csv` by the `prepare_data.R` script.
+
+## Binary corpus
+
+```{r data-read, cache = TRUE}
+# Read cleaned data
+gp <- read.csv(file = "gp.csv", header = TRUE, stringsAsFactors = TRUE)
+gp <- as_tibble(gp)
+
+# Data frame with NA arias, labeled by their incipits
+aria_labels <- c("1239" = "Non sarei (Ale12M)",
+                 "1241" = "Sperai vicino (Dem04M)",
+                 "1242" = "Tu sai (Dem10M)")
+gp_unk <- gp |>
+  filter(is.na(Composer))
+unk_arias <- aria_labels[as.character(gp_unk$AriaId)]
+unk_arias
+
+# Data frame with known arias
+gp <- gp |>
+  filter(!is.na(Composer))
+
+# Levels of Composer (0 = Baldassare Galuppi, 1 = Davide Perez). The [[2]]
+# probability columns downstream rely on this alphabetical level order.
+stopifnot(identical(levels(gp$Composer),
+                    c("Baldassare Galuppi", "Davide Perez")))
+levels(gp$Composer)
+table(gp$Composer)
+
+# Aria titles for labeling exemplars and test arias. A few ids are non-numeric
+# variants ("0877a") and are dropped before the integer join key is built.
+aria_names <- read.csv("aria_names.csv", stringsAsFactors = FALSE) |>
+  filter(grepl("^[0-9]+$", AriaId)) |>
+  mutate(AriaId = as.integer(AriaId))
+```
+
+## Alessandro nell'Indie corpus
+
+```{r ale-read-data, cache = TRUE}
+# Read cleaned Alessandro-screen data
+gpa <- read.csv(file = "gp_ale.csv", header = TRUE,
+                stringsAsFactors = TRUE)
+gpa <- as_tibble(gpa)
+
+# Split into unknown and known arias
+gpa_unk <- gpa |>
+  filter(is.na(Composer))
+gpa <- gpa |>
+  filter(!is.na(Composer))
+table(gpa$Composer)
+```
+
+## Demofoonte corpus
+
+```{r multi-read-data, cache = TRUE}
+# Read cleaned multiclass data
+gpm <- read.csv(file = "gp_multi.csv", header = TRUE,
+                stringsAsFactors = TRUE)
+gpm <- as_tibble(gpm)
+
+# Split into unknown and known arias
+gpm_unk <- gpm |>
+  filter(is.na(Composer))
+gpm <- gpm |>
+  filter(!is.na(Composer))
+table(gpm$Composer)
+```
+
+# Binary problem: Galuppi vs. Perez
+
+## Train/test split
+
+```{r split, cache = TRUE}
+# Stratified training + testing split
+set.seed(260126)
+gp_split <- initial_split(gp, prop = 0.70, strata = Composer)
+gp_train <- training(gp_split)
+gp_test <- testing(gp_split)
+gp_all <- gp
+c("train" = nrow(gp_train), "test" = nrow(gp_test), "all" = nrow(gp_all))
+```
+
+## Preprocessing
+
+```{r recipe, cache = TRUE}
+# Preprocessing recipe
+clean <- preprocess_recipe(data = gp_train)
+
+# Prepare recipe with training data
+prep_clean <- prep(clean, training = gp_train, log_changes = TRUE)
+
+# Apply recipe to training and testing
+gp_train_clean <- bake(prep_clean, new_data = gp_train)
+gp_test_clean <- bake(prep_clean, new_data = gp_test)
+gp_unk_clean <- bake(prep_clean, new_data = gp_unk)
+
+# Re-estimate the same recipe on all known arias for the final model
+prep_clean_all <- prep(clean, training = gp_all, log_changes = TRUE)
+gp_all_clean_all <- bake(prep_clean_all, new_data = gp_all)
+gp_unk_clean_all <- bake(prep_clean_all, new_data = gp_unk)
+
+# Number of predictors entering the models
+p_train <- ncol(gp_train_clean) - 1
+p_all <- ncol(gp_all_clean_all) - 1
+c("p_train" = p_train, "p_all" = p_all)
+```
+
+## Candidate models
+
+```{r baseline, cache = TRUE}
+# Majority class in the training set
+mc_class <- names(which.max(table(gp_train_clean$Composer)))
+mc_class
+
+# Constant prediction on the test set
+pred_mc_class <- factor(rep(mc_class, nrow(gp_test_clean)),
+                        levels = levels(gp_train_clean$Composer))
+pred_mc_prob <- rep(0.5, nrow(gp_test_clean))
+```
+
+```{r model-grid, cache = TRUE}
+# The deterministic models (LL, RL, RF), tuned on stratified folds shared by
+# every model, in both the rsample and the foldid representations. AutoML is
+# fitted in its own chunk below, so a failed search does not invalidate this
+# cache. The "-raw" tag is kept in the combo names so the paper macros keep
+# their names.
+set.seed(42)
+folds <- vfold_cv(gp_train_clean, v = 10, strata = Composer)
+foldid <- make_foldid(folds, nrow(gp_train_clean))
+models_base <- fit_base_models(train = gp_train_clean, test = gp_test_clean,
+                               folds = folds)
+names(models_base) <- paste(names(models_base), "raw", sep = "-")
+
+# Number of nonzero coefficients of the lasso
+las_coefs <- tidy(models_base[["LL-raw"]]$fit) |>
+  filter(term != "(Intercept)", estimate != 0)
+nrow(las_coefs)
+```
+
+```{r model-grid-automl, cache = TRUE, cache.extra = c(tools::md5sum("methods.R"), max_models_automl)}
+# The AutoML search on the folds of model-grid, reloaded from its rds when
+# present.
+models_automl <- list(
+  "AutoML-raw" = fit_automl_model(train = gp_train_clean,
+                                  test = gp_test_clean, unk = gp_unk_clean,
+                                  foldid = foldid,
+                                  cache_file = "automl_raw.rds",
+                                  max_models = max_models_automl)
+)
+
+# Pool the candidates in the order of the tables
+models <- c(models_base, models_automl)
+
+# Selected hyperparameters / leader models
+tibble(combo = names(models),
+       params = map_chr(models, "params")) |>
+  knitr::kable()
+```
+
+```{r ridge-check, cache = TRUE}
+# Wiring check of the parsnip/glmnet correspondence, not of the selection
+# rule: the workflow fitted at the selected penalty must reproduce a direct
+# glmnet fit at the same penalty.
+X_train <- gp_train_clean |>
+  select(-Composer) |>
+  as.matrix()
+lam_rl <- models[["RL-raw"]]$penalty
+lam_rl
+direct <- glmnet(x = X_train, y = gp_train_clean$Composer,
+                 family = "binomial", alpha = 0, lambda = lam_rl)
+coef_direct <- as.numeric(coef(direct, s = lam_rl))
+coef_wf <- as.numeric(coef(extract_fit_engine(models[["RL-raw"]]$fit),
+                           s = lam_rl))
+
+# With path_values pinning the path to the tuning grid, the two fits differ
+# only by glmnet's convergence tolerance. The objective is flat along the
+# exactly collinear directions the design deliberately keeps, so the
+# coefficient gaps reach order 1e-3 and widen a little on the test rows; a
+# wiring error (wrong penalty or family) would be order 1.
+X_test <- gp_test_clean |>
+  select(-Composer) |>
+  as.matrix()
+p_direct <- as.numeric(predict(direct, newx = X_test, s = lam_rl,
+                               type = "response"))
+p_wf <- predict(models[["RL-raw"]]$fit, gp_test_clean, type = "prob")[[2]]
+c("max_abs_coef_diff" = max(abs(coef_direct - coef_wf)),
+  "max_abs_prob_diff" = max(abs(p_direct - p_wf)))
+stopifnot(max(abs(p_direct - p_wf)) < 1e-2,
+          max(abs(coef_direct - coef_wf)) < 1e-2)
+```
+
+## Model comparison
+
+```{r test-metrics, cache = TRUE}
+# Test truth and per-combination class and Perez-probability predictions
+truth <- gp_test_clean$Composer
+all_class <- c(list(MC = pred_mc_class), map(models, "class"))
+all_prob <- c(list(MC = pred_mc_prob), map(models, "prob"))
+
+# Test accuracy and macro-F1 of every combination
+knitr::kable(tibble(combo = names(all_class),
+                    Acc = map_dbl(all_class, ~ mean(.x == truth)),
+                    F1 = map_dbl(all_class, ~ f1(truth, .x))), digits = 4)
+```
+
+```{r bootstrap, cache = TRUE}
+# Every combination against RL-raw (does anything beat the incumbent ridge?)
+# and against MC (does each beat the baseline?), in accuracy and macro-F1, on
+# the same B bootstrap samples of the test set.
+B <- 1e5
+idx_boot <- boot_idx(n = nrow(gp_test_clean), B = B, seed = 42)
+comparison_tab <- compare_models(truth = truth, all_class = all_class,
+                                 incumbent = "RL-raw", baseline = "MC",
+                                 idx = idx_boot, all_prob = all_prob)
+knitr::kable(comparison_tab, digits = 4)
+```
+
+## Final ridge and marker inference
+
+```{r final-ridge, cache = TRUE, cache.rebuild = !file.exists("../imgs/ridge_coefs.pdf")}
+# Fold ids on all known arias for a reproducible cv.glmnet
+set.seed(42)
+folds_all <- vfold_cv(gp_all_clean_all, v = 10, strata = Composer)
+foldid_all <- make_foldid(folds_all, nrow(gp_all_clean_all))
+
+# Fit ridge on all known arias
+X_all <- gp_all_clean_all |>
+  select(-Composer) |>
+  as.matrix()
+cv0_all <- cv.glmnet(x = X_all,
+                     y = gp_all_clean_all$Composer,
+                     family = "binomial",
+                     type.measure = "deviance",
+                     alpha = 0,
+                     foldid = foldid_all,
+                     parallel = TRUE,
+                     lambda = exp(seq(3, -6, l = 300)))
+plot(cv0_all)
+
+# Both the deviance minimizer and the selected penalty must be strictly
+# inside the grid
+stopifnot(cv0_all$lambda.min > min(cv0_all$lambda),
+          cv0_all$lambda.min < max(cv0_all$lambda),
+          cv0_all$lambda.1se > min(cv0_all$lambda),
+          cv0_all$lambda.1se < max(cv0_all$lambda))
+cv0_all$lambda.1se
+
+# In-sample confusion matrix of the final model
+glmnet::confusion.glmnet(cv0_all, s = cv0_all$lambda.1se,
+                         newx = X_all,
+                         newy = gp_all_clean_all$Composer)
+
+# Marginal Wald CIs over the p slopes of the final model, the intercept not
+# being a tested hypothesis, then BH selection at the 5% FDR with the
+# false-coverage-rate intervals of the selected coefficients (methods.R).
+ci_df_all <- logis_ridge_ci(X = X_all,
+                            beta_hat = coef(cv0_all,
+                                            s = cv0_all$lambda.1se)[, 1],
+                            lambda = (nrow(X_all) - 1) *
+                              cv0_all$lambda.1se / 2,
+                            level = 0.95)
+fcr_all <- fcr_ci(ci_df_all, m = ncol(X_all))
+signif_df <- fcr_all$ci |>
+  filter(selected)
+n_signif <- fcr_all$R
+zcrit_marg <- qnorm(1 - (1 - 0.95) / 2)
+n_signif_marginal <- sum(abs(ci_df_all$z_value) > zcrit_marg)
+c("n_signif_bh" = n_signif, "n_signif_marginal" = n_signif_marginal,
+  "z_fcr" = fcr_all$z_fcr)
+
+# Significant coefficients: table and plot
+ci_plot <- logis_ridge_ci_plot(signif_df)
+ci_plot
+
+# Calibration of the marginal count: false positives expected under the
+# global null
+null_expected <- 0.05 * p_all
+null_expected
+
+# Exported at the LaTeX text-block width so the fonts match the text; the
+# fixed overhead keeps the axis title from eating the panel when few
+# coefficients survive
+ggsave("../imgs/ridge_coefs.pdf", plot = ci_plot,
+       width = 6.5, height = min(9, 1.6 + 0.22 * n_signif),
+       limitsize = FALSE)
+
+# Gitignored; lets the coverage study of coverage_study.R use the real design
+saveRDS(list(X = X_all,
+             beta = coef(cv0_all, s = cv0_all$lambda.1se)[, 1],
+             lambda_glmnet = cv0_all$lambda.1se),
+        file = "coverage_binary.rds")
+```
+
+## Marker correlations
+
+The BH-selected markers are representatives of groups of highly correlated features, part of which the correlation filters removed before the models could see them. For each selected marker, its top correlates among the filtered-out features (which never had the chance to be selected); the post-encoding filter caps kept-pair correlations at 0.8, so the removed pool is complete at that level.
+
+```{r binary-correlates, cache = TRUE, fig.height = 1 + 2.6 * nrow(signif_df)}
+# Pre-correlation pool on all known arias, matching the final-fit sample. The
+# pool recipe is derived from the production recipe by dropping its two
+# correlation filters, so there is a single recipe definition.
+clean_pool <- clean
+clean_pool$steps <- clean$steps[!sapply(clean$steps, inherits, "step_corr")]
+prep_pool <- prep(clean_pool, training = gp_all, log_changes = FALSE)
+pool_bin <- bake(prep_pool, new_data = gp_all) |>
+  select(-Composer)
+c("pool" = ncol(pool_bin), "final" = ncol(X_all))
+
+# Which filter removed each pool column, read off the prepped production
+# recipe: the correlation steps' tidy() lists their removals, the rest of the
+# pool-minus-final gap is the post-encoding near-zero-variance filter
+corr_steps <- which(sapply(prep_clean_all$steps, inherits, "step_corr"))
+corr_removed <- unlist(lapply(corr_steps, function(i)
+  tidy(prep_clean_all, number = i)$terms))
+
+# Top filtered-out correlates of the selected binary markers
+corr_bin <- marker_correlates(X_pool = pool_bin,
+                              final_cols = colnames(X_all),
+                              markers = signif_df$term) |>
+  mutate(removed_by = ifelse(correlate %in% corr_removed,
+                             "correlation filter", "near-zero variance"))
+write.csv(corr_bin, file = "marker_correlates.csv", row.names = FALSE)
+print(as.data.frame(corr_bin), digits = 2)
+plot_marker_correlates(corr_bin, ncol = 1)
+```
+
+## Attribution of the doubtful arias
+
+```{r predict-unknown, cache = TRUE}
+# Predictions from the raw train-fitted models. The AutoML ones are computed
+# inside fit_automl_model(), where the h2o handle lives.
+auto_unk_prob <- models[["AutoML-raw"]]$unk_prob
+unk_votes <- tibble(
+  Aria = unk_arias,
+  LL = predict(models[["LL-raw"]]$fit, gp_unk_clean)$.pred_class,
+  RL = predict(models[["RL-raw"]]$fit, gp_unk_clean)$.pred_class,
+  RF = predict(models[["RF-raw"]]$fit, gp_unk_clean)$.pred_class,
+  AutoML = factor(
+    levels(gp_train_clean$Composer)[1 + (auto_unk_prob > 0.5)],
+    levels = levels(gp_train_clean$Composer)
+  )
+)
+knitr::kable(unk_votes)
+
+# 95% CI on P(Perez); the Galuppi one follows by 1 - p with swapped endpoints
+X_unk_all <- gp_unk_clean_all |>
+  select(-Composer) |>
+  as.matrix()
+unk_ci <- logis_ridge_pred_ci(X = X_all,
+                              beta_hat = coef(cv0_all,
+                                              s = cv0_all$lambda.1se)[, 1],
+                              lambda = (nrow(X_all) - 1) *
+                                cv0_all$lambda.1se / 2,
+                              new_X = X_unk_all,
+                              level = 0.95)
+unk_pred <- tibble(
+  Aria = unk_arias,
+  p_perez = unk_ci$p_hat,
+  p_ci_low = unk_ci$p_ci_low,
+  p_ci_up = unk_ci$p_ci_up,
+  p_galuppi = 1 - unk_ci$p_hat,
+  p_galuppi_ci_low = 1 - unk_ci$p_ci_up,
+  p_galuppi_ci_up = 1 - unk_ci$p_ci_low,
+  Attribution = ifelse(unk_ci$p_hat < 0.5, "Baldassare Galuppi",
+                       "Davide Perez")
+)
+knitr::kable(unk_pred, digits = 4)
+```
+
+## Test-set probabilities figure
+
+```{r test-probs-figure}
+# Out-of-sample P(Galuppi) on the test set with the anonymous aria
+# superimposed, on the same axis as the multi-class figure. The two Demofoonte
+# arias belong to the screenings and are plotted there instead.
+pred_rid_prob <- 1 - models[["RL-raw"]]$prob
+unk_prob_train <- 1 - predict(models[["RL-raw"]]$fit, gp_unk_clean,
+                              type = "prob")[[2]]
+names(unk_prob_train) <- unk_arias
+unk_prob_train
+
+# Test-set probabilities and the anonymous aria as data frames for the figure
+probs_df <- tibble(p_galuppi = pred_rid_prob, Composer = truth)
+arias_df <- tibble(p_galuppi = unk_prob_train, Aria = unk_arias,
+                   AriaId = as.character(gp_unk$AriaId)) |>
+  filter(AriaId == "1239") |>
+  select(-AriaId)
+
+# Boundary-respecting densities per composer, with the plug-in bandwidths
+# kept for the caption and a rug of the individual test arias.
+probs_kde <- kde_probs(p = probs_df$p_galuppi, Composer = probs_df$Composer)
+distinct(probs_kde, Composer, h)
+probs_plot <- plot_probs_kde(
+  kde_df = probs_kde, rug_df = probs_df, arias_df = arias_df,
+  xlab = "Predicted probability of Galuppi (ridge logistic regression)",
+  legend_box = "horizontal"
+)
+probs_plot
+ggsave("../imgs/ridge_test_probs.pdf", plot = probs_plot,
+       width = 8, height = 5)
+
+# Most confidently classified test arias per composer
+probs_id <- tibble(AriaId = gp_test$AriaId,
+                   Composer = truth,
+                   p_galuppi = pred_rid_prob) |>
+  left_join(aria_names, by = "AriaId")
+probs_id |>
+  arrange(desc(p_galuppi)) |>
+  slice_head(n = 5) |>
+  knitr::kable(digits = 4, caption = "Most Galuppi-like test arias")
+probs_id |>
+  arrange(p_galuppi) |>
+  slice_head(n = 5) |>
+  knitr::kable(digits = 4, caption = "Most Perez-like test arias")
+```
+
+## Exemplar CSV
+
+```{r exemplar-values}
+# Marginally significant binary markers of the final ridge: the paper names
+# traits from both tiers, not just the selected one. Dummy markers are
+# skipped, as in the K = 5 exemplars: they have no raw-corpus column.
+signif_marg <- ci_df_all |>
+  filter(abs(z_value) > zcrit_marg) |>
+  arrange(desc(abs(estimate)))
+stopifnot(nrow(signif_marg) > 10)
+markers <- signif_marg$term
+markers <- markers[markers %in% colnames(gp_all) &
+                     markers %in% colnames(gpa)]
+stopifnot(length(markers) > 5)
+
+# Marker directions and effects, used by the percentiles and exemplars below.
+# A positive coefficient points to Perez.
+dirs <- signif_marg |>
+  transmute(marker = term,
+            perez_high = estimate > 0,
+            pct = (exp(estimate) - 1) * 100)
+```
+
+```{r exemplar-values-raw}
+# Raw marker values with aria titles: Galuppi and Perez from the binary
+# corpus, Jommelli and Hasse from the raw screening corpora.
+gpa_jom <- gpa |>
+  filter(Composer == "Niccolò Jommelli")
+gpm_has <- gpm |>
+  filter(Composer == "Johann Adolph Hasse")
+vals <- bind_rows(
+  gp_all |> select(AriaId, Composer, all_of(markers)),
+  gpa_jom |> select(AriaId, Composer, all_of(markers)),
+  gpm_has |> select(AriaId, Composer, all_of(markers))
+) |>
+  pivot_longer(all_of(markers), names_to = "marker", values_to = "value") |>
+  left_join(aria_names, by = "AriaId")
+```
+
+```{r exemplar-top3}
+# Galuppi and Perez arias are ranked in their model direction, Jommelli and
+# Hasse ones in the direction of their own mean relative to the Galuppi +
+# Perez mean.
+means <- vals |>
+  summarise(mean = mean(value, na.rm = TRUE), .by = c(marker, Composer)) |>
+  pivot_wider(names_from = Composer, values_from = mean) |>
+  rename(mean_galuppi = `Baldassare Galuppi`, mean_perez = `Davide Perez`,
+         mean_jommelli = `Niccolò Jommelli`,
+         mean_hasse = `Johann Adolph Hasse`)
+
+# Top-3 exemplars per marker and composer, shared for the score examples
+exemplars <- vals |>
+  filter(!is.na(value)) |>
+  left_join(dirs, by = "marker") |>
+  left_join(means, by = "marker") |>
+  mutate(direction = case_when(
+    Composer == "Baldassare Galuppi" & perez_high ~ "low",
+    Composer == "Baldassare Galuppi" & !perez_high ~ "high",
+    Composer == "Davide Perez" & perez_high ~ "high",
+    Composer == "Davide Perez" & !perez_high ~ "low",
+    Composer == "Johann Adolph Hasse" &
+      mean_hasse > (mean_galuppi + mean_perez) / 2 ~ "high",
+    Composer == "Johann Adolph Hasse" ~ "low",
+    mean_jommelli > (mean_galuppi + mean_perez) / 2 ~ "high",
+    .default = "low"
+  )) |>
+  arrange(marker, Composer, if_else(direction == "high", -value, value)) |>
+  group_by(marker, Composer) |>
+  slice_head(n = 3) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  select(marker, pct, Composer, direction, rank, AriaId, AriaName,
+         AriaOpera, value, mean_galuppi, mean_perez, mean_jommelli,
+         mean_hasse)
+write.csv(exemplars, file = "discussion/exemplar_arias.csv", row.names = FALSE)
+c("markers" = length(unique(exemplars$marker)),
+  "rows" = nrow(exemplars))
+```
+
+# Alessandro nell'Indie screening (K = 6)
+
+## Train/test split
+
+```{r ale-split, cache = TRUE}
+# Stratified training + testing split
+set.seed(260126)
+gpa_split <- initial_split(gpa, prop = 0.70, strata = Composer)
+gpa_train <- training(gpa_split)
+gpa_test <- testing(gpa_split)
+gpa_all <- gpa
+c("train" = nrow(gpa_train), "test" = nrow(gpa_test), "all" = nrow(gpa_all))
+```
+
+## Preprocessing
+
+```{r ale-recipe, cache = TRUE}
+# Same preprocessing recipe on the Alessandro-screen corpus (methods.R)
+clean_ale <- preprocess_recipe(data = gpa_train)
+
+# Prepare and apply on training/testing and, re-estimated, on all known arias
+prep_ale <- prep(clean_ale, training = gpa_train, log_changes = FALSE)
+gpa_train_clean <- bake(prep_ale, new_data = gpa_train)
+gpa_test_clean <- bake(prep_ale, new_data = gpa_test)
+gpa_unk_clean <- bake(prep_ale, new_data = gpa_unk)
+prep_ale_all <- prep(clean_ale, training = gpa_all, log_changes = FALSE)
+gpa_all_clean_all <- bake(prep_ale_all, new_data = gpa_all)
+gpa_unk_clean_all <- bake(prep_ale_all, new_data = gpa_unk)
+
+# Number of predictors
+c("p_train" = ncol(gpa_train_clean) - 1,
+  "p_all" = ncol(gpa_all_clean_all) - 1)
+```
+
+## Candidate models
+
+```{r ale-fit, cache = TRUE}
+# The deterministic candidates and the majority-class baseline at K = 6,
+# under the same protocols as the binary problem (methods.R). AutoML is
+# fitted in the next chunk, so a failed search does not invalidate this cache.
+fit_ale <- fit_screen_models(train = gpa_train_clean, test = gpa_test_clean)
+
+# Unpack for the benchmark, figure, and paper-number chunks
+cm_ale <- fit_ale$cm
+ale_recalls <- fit_ale$recalls
+mc_ale_class <- fit_ale$mc_class
+
+# rsample pools the strata below 10% of the data, so the rare composers are
+# balanced neither across folds nor by the 70/30 split above.
+sapply(fit_ale$folds$splits, function(s) table(assessment(s)$Composer))
+
+# Confusion matrix and per-class recalls of the ridge
+cm_ale
+round(ale_recalls, 4)
+```
+
+```{r ale-automl, cache = TRUE, cache.extra = c(tools::md5sum("methods.R"), max_models_automl)}
+# The K = 6 AutoML search on the folds above, reloaded from its rds when
+# present, appended to the candidate set.
+models_ale <- c(fit_ale$models,
+                list(AutoML = fit_automl_model(
+                  train = gpa_train_clean, test = gpa_test_clean,
+                  unk = gpa_unk_clean, foldid = fit_ale$foldid,
+                  cache_file = "automl_ale.rds",
+                  max_models = max_models_automl)))
+
+# Selected hyperparameters / leader models
+tibble(combo = names(models_ale),
+       params = map_chr(models_ale, "params")) |>
+  knitr::kable()
+```
+
+## Model comparison
+
+```{r ale-benchmark, cache = TRUE, dependson = "bootstrap"}
+# As in the binary problem: every model against the ridge and against the
+# baseline, in accuracy and zero-filled macro-F1, on shared resamples.
+all_class_ale <- c(list(MC = mc_ale_class), map(models_ale, "class"))
+idx_boot_a <- boot_idx(n = nrow(gpa_test_clean), B = B, seed = 42)
+comparison_ale <- compare_models(truth = gpa_test_clean$Composer,
+                                 all_class = all_class_ale,
+                                 incumbent = "RL", baseline = "MC",
+                                 idx = idx_boot_a)
+knitr::kable(comparison_ale, digits = 4)
+```
+
+## Final ridge and marker inference
+
+```{r ale-final, cache = TRUE}
+# Final K = 6 ridge and the contrast of Galuppi against Jommelli, its leading
+# alternative.
+fin_ale <- final_screen(all_clean = gpa_all_clean_all,
+                        unk_clean = gpa_unk_clean_all,
+                        unk_ids = gpa_unk$AriaId,
+                        aria_labels = aria_labels,
+                        contrasts = "Niccolò Jommelli",
+                        rds_file = "coverage_ale.rds")
+
+# Unpack for the attribution and paper-number chunks
+cv_ale_all <- fin_ale$cv
+ale_probs <- fin_ale$probs
+ale_ci <- fin_ale$ci
+ale_diff <- fin_ale$diffs[[1]]
+
+# Cross-validation curve and selected penalty
+plot(cv_ale_all)
+cv_ale_all$lambda.1se
+```
+
+```{r ale-coefs, cache = TRUE}
+# Slope inference on the final K = 6 fit: BH selection at the 5% FDR over
+# the K * p slopes, with FCR intervals for the selected ones (methods.R).
+# Mind the parametrization: the penalty forces sum_k beta_jk = 0, so
+# exp(beta_jk) is a ratio to the geometric mean of the K class probabilities,
+# not a one-vs-rest odds ratio. Only (K - 1) * p slopes are free, so
+# m = K * p is conservative.
+ale_ci_coefs <- mult_ridge_ci(
+  X = fin_ale$X_all,
+  beta_mat = fin_ale$beta_mat,
+  lambda = (nrow(fin_ale$X_all) - 1) * cv_ale_all$lambda.1se / 2,
+  level = 0.95,
+  class_names = fin_ale$class_order
+)
+fcr_ale <- fcr_ci(ale_ci_coefs,
+                  m = nrow(fin_ale$beta_mat) * ncol(fin_ale$X_all))
+ale_signif <- fcr_ale$ci |>
+  filter(selected) |>
+  mutate(pct = (exp(estimate) - 1) * 100) |>
+  arrange(class, desc(abs(estimate)))
+ale_n_signif_marginal <- sum(abs(ale_ci_coefs$z_value) > qnorm(0.975))
+c("n_signif_ale" = nrow(ale_signif),
+  "n_signif_ale_marginal" = ale_n_signif_marginal,
+  "z_fcr_ale" = fcr_ale$z_fcr)
+
+# Selected markers, most relevant (largest |z|) first
+ale_signif |>
+  select(class, term, pct, z_value) |>
+  arrange(desc(abs(z_value))) |>
+  knitr::kable(digits = 2)
+```
+
+```{r ale-coefs-figure, fig.height = max(5, 2 + 0.5 * nrow(ale_signif))}
+# CI figure of the selected markers; skipped if the BH selection is empty
+if (nrow(ale_signif) > 0) mult_ridge_ci_plot(ale_signif)
+```
+
+## Marker correlations
+
+```{r ale-correlates, cache = TRUE, fig.width = 10, fig.height = max(4, 1 + 2.6 * ceiling(length(unique(ale_signif$term)) / 2))}
+# The same as for the binary markers, on the Alessandro corpus pool
+clean_pool_a <- clean_ale
+clean_pool_a$steps <-
+  clean_ale$steps[!sapply(clean_ale$steps, inherits, "step_corr")]
+prep_pool_a <- prep(clean_pool_a, training = gpa_all, log_changes = FALSE)
+pool_ale <- bake(prep_pool_a, new_data = gpa_all) |>
+  select(-Composer)
+c("pool" = ncol(pool_ale), "final" = ncol(fin_ale$X_all))
+
+# Top filtered-out correlates of the K = 6 markers; skipped if the BH
+# selection is empty
+corr_steps_a <- which(sapply(prep_ale_all$steps, inherits, "step_corr"))
+corr_removed_a <- unlist(lapply(corr_steps_a, function(i)
+  tidy(prep_ale_all, number = i)$terms))
+if (nrow(ale_signif) > 0) {
+
+  corr_ale <- marker_correlates(X_pool = pool_ale,
+                                final_cols = colnames(fin_ale$X_all),
+                                markers = unique(ale_signif$term)) |>
+    mutate(removed_by = ifelse(correlate %in% corr_removed_a,
+                               "correlation filter", "near-zero variance"))
+  write.csv(corr_ale, file = "ale_marker_correlates.csv", row.names = FALSE)
+  plot_marker_correlates(corr_ale, ncol = 2)
+
+}
+```
+
+## Attribution of the doubtful aria
+
+```{r ale-attribution}
+# Probabilities, the Galuppi vs. Jommelli contrast, and the prediction CIs of
+# the anonymous aria under the final K = 6 ridge
+knitr::kable(ale_probs, digits = 4)
+knitr::kable(ale_diff, digits = 4)
+ale_ci |>
+  select(aria, class, p_hat, p_ci_low, p_ci_up) |>
+  knitr::kable(digits = 4)
+```
+
+## Exemplar CSV
+
+```{r ale-exemplars}
+# K = 6 Alessandro markers, ranked within the screening composers; dummies
+# absent from the raw corpus are skipped.
+ale_markers_df <- ale_signif |>
+  filter(term %in% colnames(gpa))
+ale_exemplars <- purrr::pmap(ale_markers_df,
+                             function(class, term, estimate, ...) {
+  gpa |>
+    filter(Composer == class, !is.na(.data[[term]])) |>
+    arrange(if (estimate > 0) desc(.data[[term]]) else .data[[term]]) |>
+    slice_head(n = 3) |>
+    transmute(class = class, marker = term,
+              pct = (exp(estimate) - 1) * 100,
+              rank = row_number(), AriaId, value = .data[[term]])
+}) |>
+  bind_rows() |>
+  left_join(aria_names, by = "AriaId")
+write.csv(ale_exemplars, file = "discussion/ale_exemplar_arias.csv",
+          row.names = FALSE)
+c("markers" = length(unique(ale_exemplars$marker)),
+  "rows" = nrow(ale_exemplars))
+```
+
+# Demofoonte screening (K = 5)
+
+## Train/test split
+
+```{r multi-split, cache = TRUE}
+# Stratified training + testing split
+set.seed(260126)
+gpm_split <- initial_split(gpm, prop = 0.70, strata = Composer)
+gpm_train <- training(gpm_split)
+gpm_test <- testing(gpm_split)
+gpm_all <- gpm
+c("train" = nrow(gpm_train), "test" = nrow(gpm_test), "all" = nrow(gpm_all))
+```
+
+## Preprocessing
+
+```{r multi-recipe, cache = TRUE}
+# Same preprocessing recipe on the multiclass corpus (methods.R)
+clean_multi <- preprocess_recipe(data = gpm_train)
+
+# Prepare and apply on training/testing and, re-estimated, on all known arias
+prep_multi <- prep(clean_multi, training = gpm_train, log_changes = FALSE)
+gpm_train_clean <- bake(prep_multi, new_data = gpm_train)
+gpm_test_clean <- bake(prep_multi, new_data = gpm_test)
+gpm_unk_clean <- bake(prep_multi, new_data = gpm_unk)
+prep_multi_all <- prep(clean_multi, training = gpm_all, log_changes = FALSE)
+gpm_all_clean_all <- bake(prep_multi_all, new_data = gpm_all)
+gpm_unk_clean_all <- bake(prep_multi_all, new_data = gpm_unk)
+
+# Number of predictors
+c("p_train" = ncol(gpm_train_clean) - 1,
+  "p_all" = ncol(gpm_all_clean_all) - 1)
+```
+
+## Candidate models
+
+```{r multi-fit, cache = TRUE}
+# The deterministic candidates and the majority-class baseline at K = 5,
+# under the same protocols as the binary problem (methods.R). AutoML is
+# fitted in the next chunk, so a failed search does not invalidate this cache.
+fit_multi <- fit_screen_models(train = gpm_train_clean, test = gpm_test_clean)
+
+# Unpack for the benchmark, figure, and paper-number chunks
+cm_multi <- fit_multi$cm
+multi_recalls <- fit_multi$recalls
+mc_multi_class <- fit_multi$mc_class
+
+# rsample pools the strata below 10% of the data, so the rare composers are
+# balanced neither across folds nor by the 70/30 split above.
+sapply(fit_multi$folds$splits, function(s) table(assessment(s)$Composer))
+
+# Confusion matrix and per-class recalls of the ridge
+cm_multi
+round(multi_recalls, 4)
+```
+
+```{r multi-automl, cache = TRUE, cache.extra = c(tools::md5sum("methods.R"), max_models_automl)}
+# The K = 5 AutoML search on the folds above, reloaded from its rds when
+# present, appended to the candidate set.
+models_multi <- c(fit_multi$models,
+                  list(AutoML = fit_automl_model(
+                    train = gpm_train_clean, test = gpm_test_clean,
+                    unk = gpm_unk_clean, foldid = fit_multi$foldid,
+                    cache_file = "automl_multi.rds",
+                    max_models = max_models_automl)))
+
+# Selected hyperparameters / leader models
+tibble(combo = names(models_multi),
+       params = map_chr(models_multi, "params")) |>
+  knitr::kable()
+```
+
+## Model comparison
+
+```{r multi-benchmark, cache = TRUE, dependson = "bootstrap"}
+# As in the binary problem: every model against the ridge and against the
+# baseline, in accuracy and zero-filled macro-F1, on shared resamples.
+all_class_multi <- c(list(MC = mc_multi_class), map(models_multi, "class"))
+idx_boot_m <- boot_idx(n = nrow(gpm_test_clean), B = B, seed = 42)
+comparison_multi <- compare_models(truth = gpm_test_clean$Composer,
+                                   all_class = all_class_multi,
+                                   incumbent = "RL", baseline = "MC",
+                                   idx = idx_boot_m)
+knitr::kable(comparison_multi, digits = 4)
+```
+
+## Final ridge and marker inference
+
+```{r multi-final, cache = TRUE}
+# Final K = 5 ridge with the prediction CIs of the two doubtful arias and the
+# contrasts of Galuppi against Hasse and against Manna, the nominal runner-up
+# for `Tu sai' whose probability is close to his base rate (34 / 424).
+fin_multi <- final_screen(all_clean = gpm_all_clean_all,
+                          unk_clean = gpm_unk_clean_all,
+                          unk_ids = gpm_unk$AriaId,
+                          aria_labels = aria_labels,
+                          contrasts = c("Johann Adolph Hasse",
+                                        "Gennaro Manna"),
+                          rds_file = "coverage_multi.rds")
+
+# Unpack for the slope-inference, attribution, and paper-number chunks
+cv_multi_all <- fin_multi$cv
+X_m_all <- fin_multi$X_all
+class_order <- fin_multi$class_order
+beta_mat_multi <- fin_multi$beta_mat
+multi_probs <- fin_multi$probs
+multi_ci <- fin_multi$ci
+multi_diff <- fin_multi$diffs[[1]]
+multi_diff_manna <- fin_multi$diffs[[2]]
+
+# Cross-validation curve and selected penalty
+plot(cv_multi_all)
+cv_multi_all$lambda.1se
+```
+
+```{r multi-coefs, cache = TRUE}
+# Slope inference on the final K = 5 fit: BH selection at the 5% FDR over
+# the K * p slopes, with FCR intervals for the selected ones (methods.R).
+# Mind the parametrization: the penalty forces sum_k beta_jk = 0, so
+# exp(beta_jk) is a ratio to the geometric mean of the K class probabilities,
+# not a one-vs-rest odds ratio. Only (K - 1) * p slopes are free, so
+# m = K * p is conservative.
+multi_ci_coefs <- mult_ridge_ci(
+  X = X_m_all,
+  beta_mat = beta_mat_multi,
+  lambda = (nrow(X_m_all) - 1) * cv_multi_all$lambda.1se / 2,
+  level = 0.95,
+  class_names = class_order
+)
+fcr_multi <- fcr_ci(multi_ci_coefs,
+                    m = nrow(beta_mat_multi) * ncol(X_m_all))
+multi_signif <- fcr_multi$ci |>
+  filter(selected) |>
+  mutate(pct = (exp(estimate) - 1) * 100) |>
+  arrange(class, desc(abs(estimate)))
+multi_n_signif_marginal <- sum(abs(multi_ci_coefs$z_value) > qnorm(0.975))
+c("n_signif_multi" = nrow(multi_signif),
+  "n_signif_multi_marginal" = multi_n_signif_marginal,
+  "z_fcr_multi" = fcr_multi$z_fcr)
+
+# Selected markers, most relevant (largest |z|) first
+multi_signif |>
+  select(class, term, pct, z_value) |>
+  arrange(desc(abs(z_value))) |>
+  knitr::kable(digits = 2)
+```
+
+```{r multi-coefs-figure, fig.height = max(5, 2 + 0.5 * nrow(multi_signif))}
+# CI figure of the selected markers
+mult_ridge_ci_plot(multi_signif)
+```
+
+## Marker correlations
+
+```{r multi-correlates, cache = TRUE, fig.width = 10, fig.height = max(4, 1 + 2.6 * ceiling(length(unique(multi_signif$term)) / 2))}
+# The same for the K = 5 selected markers (dummies included), on the
+# Demofoonte corpus pool
+clean_pool_m <- clean_multi
+clean_pool_m$steps <-
+  clean_multi$steps[!sapply(clean_multi$steps, inherits, "step_corr")]
+prep_pool_m <- prep(clean_pool_m, training = gpm_all, log_changes = FALSE)
+pool_multi <- bake(prep_pool_m, new_data = gpm_all) |>
+  select(-Composer)
+c("pool" = ncol(pool_multi), "final" = ncol(X_m_all))
+
+# Top filtered-out correlates of the K = 5 markers
+corr_steps_m <- which(sapply(prep_multi_all$steps, inherits, "step_corr"))
+corr_removed_m <- unlist(lapply(corr_steps_m, function(i)
+  tidy(prep_multi_all, number = i)$terms))
+corr_multi <- marker_correlates(X_pool = pool_multi,
+                                final_cols = colnames(X_m_all),
+                                markers = unique(multi_signif$term)) |>
+  mutate(removed_by = ifelse(correlate %in% corr_removed_m,
+                             "correlation filter", "near-zero variance"))
+write.csv(corr_multi, file = "multi_marker_correlates.csv",
+          row.names = FALSE)
+plot_marker_correlates(corr_multi, ncol = 2)
+```
+
+## Attribution of the doubtful arias
+
+```{r multi-attribution}
+# Probabilities, the Galuppi vs. Hasse and vs. Manna contrasts, and the
+# prediction CIs of the two doubtful arias under the final K = 5 ridge
+knitr::kable(multi_probs, digits = 4)
+knitr::kable(multi_diff, digits = 4)
+knitr::kable(multi_diff_manna, digits = 4)
+multi_ci |>
+  select(aria, class, p_hat, p_ci_low, p_ci_up) |>
+  knitr::kable(digits = 4)
+```
+
+## Screening probabilities figure
+
+```{r multi-probs-figure}
+# Each doubtful aria in its own candidate field: test-set P(Galuppi) of the
+# train-fitted ridges by true composer, with the doubtful arias superimposed.
+p_gal <- ".pred_Baldassare Galuppi"
+multi_prob_train <- predict(models_multi$RL$fit, gpm_unk_clean,
+                            type = "prob")[[p_gal]]
+names(multi_prob_train) <- aria_labels[as.character(gpm_unk$AriaId)]
+ale_prob_train <- predict(models_ale$RL$fit, gpa_unk_clean,
+                          type = "prob")[[p_gal]]
+names(ale_prob_train) <- aria_labels[as.character(gpa_unk$AriaId)]
+c(ale_prob_train, multi_prob_train)
+
+# Test-set probabilities (surname-labeled) and doubtful arias, stacked by
+# screening problem for the faceted figure. The labels are plotmath, parsed by
+# the facet labeller, so the opera titles render in italics.
+lab_ale <- "italic(\"Alessandro nell'Indie\")~\"screening (anonymous aria)\""
+lab_dem <- "italic(\"Demofoonte\")~\"screening (two doubtful arias)\""
+mprobs_df <- bind_rows(
+  tibble(problem = lab_ale,
+         p_galuppi = predict(models_ale$RL$fit, gpa_test_clean,
+                             type = "prob")[[p_gal]],
+         Composer = sub("^.* ", "", gpa_test_clean$Composer)),
+  tibble(problem = lab_dem,
+         p_galuppi = predict(models_multi$RL$fit, gpm_test_clean,
+                             type = "prob")[[p_gal]],
+         Composer = sub("^.* ", "", gpm_test_clean$Composer))
+)
+marias_df <- bind_rows(
+  tibble(problem = lab_ale, p_galuppi = ale_prob_train,
+         Aria = names(ale_prob_train)),
+  tibble(problem = lab_dem, p_galuppi = multi_prob_train,
+         Aria = names(multi_prob_train))
+)
+
+# Densities within each screening, so each panel is scaled by its own test set
+mprobs_kde <- mprobs_df |>
+  group_by(problem) |>
+  group_modify(~ kde_probs(p = .x$p_galuppi, Composer = .x$Composer)) |>
+  ungroup()
+distinct(mprobs_kde, problem, Composer, h)
+mprobs_plot <- plot_probs_kde(
+  kde_df = mprobs_kde, rug_df = mprobs_df, arias_df = marias_df,
+  xlab = "Predicted probability of Galuppi (multinomial ridge)",
+  facet = ~problem, labeller = "label_parsed"
+)
+mprobs_plot
+ggsave("../imgs/multi_test_probs.pdf", plot = mprobs_plot,
+       width = 8, height = 7)
+```
+
+## Exemplar CSV
+
+```{r multi-exemplars}
+# K = 5 Demofoonte markers, ranked within the multiclass composers; dummies
+# absent from the raw corpus are skipped.
+multi_markers_df <- multi_signif |>
+  filter(term %in% colnames(gpm))
+multi_exemplars <- purrr::pmap(multi_markers_df,
+                               function(class, term, estimate, ...) {
+  gpm |>
+    filter(Composer == class, !is.na(.data[[term]])) |>
+    arrange(if (estimate > 0) desc(.data[[term]]) else .data[[term]]) |>
+    slice_head(n = 3) |>
+    transmute(class = class, marker = term,
+              pct = (exp(estimate) - 1) * 100,
+              rank = row_number(), AriaId, value = .data[[term]])
+}) |>
+  bind_rows() |>
+  left_join(aria_names, by = "AriaId")
+write.csv(multi_exemplars, file = "discussion/multi_exemplar_arias.csv",
+          row.names = FALSE)
+c("markers" = length(unique(multi_exemplars$marker)),
+  "rows" = nrow(multi_exemplars))
+```
+
+# Doubtful-aria percentiles
+
+```{r doubtful-percentiles}
+# Percentile of each doubtful aria within Galuppi's own corpus, per marker,
+# over the binary markers plus the raw-feature K = 5 ones. Feeds the pctl_
+# rows of paper-numbers.
+k5_markers <- unique(multi_signif$term[multi_signif$term %in%
+                                         colnames(gp_unk)])
+all_markers <- union(markers, k5_markers)
+
+# Feature quoted descriptively in the Discussion; its percentile stays
+# exported even if it leaves the significance sets
+all_markers <- union(all_markers, "SoundVa_DescendingIntervallicStd")
+gal_vals <- gp_all |>
+  filter(Composer == "Baldassare Galuppi") |>
+  select(AriaId, all_of(all_markers)) |>
+  pivot_longer(all_of(all_markers), names_to = "marker",
+               values_to = "value") |>
+  filter(!is.na(value))
+doubtful <- gp_unk |>
+  select(AriaId, all_of(all_markers)) |>
+  pivot_longer(all_of(all_markers), names_to = "marker",
+               values_to = "value") |>
+  left_join(dirs, by = "marker") |>
+  rowwise() |>
+  mutate(pctl_galuppi = mean(gal_vals$value[gal_vals$marker == marker] <=
+                               value)) |>
+  ungroup()
+write.csv(doubtful, file = "discussion/doubtful_arias_markers.csv",
+          row.names = FALSE)
+
+# Most extreme percentiles first; the full set is in
+# doubtful_arias_markers.csv
+doubtful |>
+  pivot_wider(id_cols = c(marker, perez_high), names_from = AriaId,
+              values_from = pctl_galuppi) |>
+  mutate(extremity = do.call(pmax,
+                             c(across(-c(marker, perez_high),
+                                      ~ abs(.x - 0.5)), na.rm = TRUE))) |>
+  arrange(desc(extremity)) |>
+  slice_head(n = 20) |>
+  print(n = 20)
+```
+
+
+# Tonic inversions
+
+```{r tonic-inversions}
+# Inversions of the tonic chords, counted from the Roman-numeral annotations
+# of the MuseScore sources by tonic_inversions.R. The extraction carries chord
+# roots only, so the inversions cannot come from gp.csv. Shares become
+# percentages of the tonic chords of each composer.
+inversions <- read.csv(file = "discussion/tonic_inversions.csv",
+                       header = TRUE) |>
+  filter(Composer %in% c("Baldassare Galuppi", "Davide Perez")) |>
+  group_by(Composer) |>
+  summarise(tonics = sum(n_tonic),
+            first = 100 * sum(tonic_first) / sum(n_tonic),
+            second = 100 * sum(tonic_second) / sum(n_tonic))
+inv_of <- function(cl, col) inversions[[col]][inversions$Composer == cl]
+inversions
+```
+
+# Markers below the multiplicity correction
+
+```{r marginal-markers}
+# Coefficients significant at the marginal 95% level but not selected at the
+# 5% FDR, for the three problems. They cannot be claimed one by one, and the
+# Discussion names a few of them, so the list is exported for inspection.
+marginal_markers <- bind_rows(
+  fcr_all$ci |> mutate(problem = "binary"),
+  fcr_multi$ci |> mutate(problem = "multi"),
+  fcr_ale$ci |> mutate(problem = "ale")
+) |>
+  filter(abs(z_value) > qnorm(0.975), !selected) |>
+  select(problem, any_of("class"), term, estimate, z_value) |>
+  arrange(problem, desc(abs(z_value)))
+write.csv(marginal_markers, file = "discussion/marginal_markers.csv",
+          row.names = FALSE)
+
+# The strongest of them, per problem
+marginal_markers |>
+  slice_head(n = 12, by = problem) |>
+  print(n = 40)
+```
+
+# Viola doubling
+
+```{r viola-doubling}
+# Share of the viola notes that double the bass at the unison or the octave,
+# counted from the MusicXML sources by viola_doubling.py. The extraction
+# describes each part on its own, so this relation between two parts cannot
+# come from gp.csv.
+doubling_all <- read.csv(file = "discussion/viola_doubling.csv", header = TRUE,
+                         colClasses = c("AriaId" = "character"))
+doubling <- doubling_all |>
+  filter(Composer != "NA") |>
+  group_by(Composer) |>
+  summarise(arias = n(),
+            doubled = 100 * sum(n_doubled) / sum(n_viola_over_bass)) |>
+  arrange(doubled)
+dbl_of <- function(cl) doubling$doubled[doubling$Composer == cl]
+
+# The doubtful arias, whose violas are compared with that practice
+dbl_aria <- function(id) {
+  row <- doubling_all[doubling_all$AriaId == id, ]
+  100 * row$n_doubled / row$n_viola_over_bass
+}
+doubling
+```
+
+# Numbers for the paper
+
+```{r paper-numbers}
+# Every number that main.tex needs, in long format
+
+# The corpus as written on disk, for the counts of the tempo annotation
+gp_csv <- read.csv(file = "gp.csv", header = TRUE)
+
+# Confusion-matrix counts quoted in the Discussion. conf_mat puts Prediction
+# in rows and Truth in columns; classes are matched by surname, to survive the
+# accented full names.
+cmm <- cm_multi$table
+cma <- cm_ale$table
+row_of <- function(tab, nm) which(grepl(nm, rownames(tab)))
+col_of <- function(tab, nm) which(grepl(nm, colnames(tab)))
+multi_numbers <- screen_numbers(probs = multi_probs, ci = multi_ci,
+                                unk_ids = gpm_unk$AriaId, prefix = "multi")
+recall_names <- gsub("[^A-Za-z0-9]", "", names(multi_recalls))
+ale_numbers <- screen_numbers(probs = ale_probs, ci = ale_ci,
+                              unk_ids = gpa_unk$AriaId, prefix = "ale")
+ale_recall_names <- gsub("[^A-Za-z0-9]", "", names(ale_recalls))
+paper_numbers <- bind_rows(
+  tibble(name = "n_known", value = nrow(gp_all)),
+  tibble(name = "n_galuppi", value = sum(gp_all$Composer ==
+                                           "Baldassare Galuppi")),
+  tibble(name = "n_perez", value = sum(gp_all$Composer == "Davide Perez")),
+  tibble(name = "n_unknown", value = nrow(gp_unk)),
+  tibble(name = "n_total", value = nrow(gp_all) + nrow(gp_unk)),
+  tibble(name = "n_features_gp_csv", value = ncol(gp_all) - 2),
+  tibble(name = "n_train", value = nrow(gp_train)),
+  tibble(name = "n_test", value = nrow(gp_test)),
+  tibble(name = "n_test_galuppi", value = sum(truth == "Baldassare Galuppi")),
+  tibble(name = "n_test_perez", value = sum(truth == "Davide Perez")),
+  tibble(name = "p_train", value = p_train),
+  tibble(name = "p_all", value = p_all),
+  tibble(name = "n_boot", value = B),
+  # Written by coverage_study.R, read here only to make the Table B1 macros
+  if (file.exists("coverage.csv")) {
+
+    cov_tab <- read.csv("coverage.csv", stringsAsFactors = FALSE)
+    bind_rows(
+      tibble(name = paste0("cov_marginal_", cov_tab$problem),
+             value = cov_tab$cov_marginal_95),
+      tibble(name = paste0("cov_marginal_ninety_", cov_tab$problem),
+             value = cov_tab$cov_marginal_90),
+      tibble(name = paste0("cov_marginal_eighty_", cov_tab$problem),
+             value = cov_tab$cov_marginal_80),
+      tibble(name = paste0("cov_seratio_", cov_tab$problem),
+             value = cov_tab$se_ratio),
+      # Excess width of the intervals over the ideal one, in percentage
+      tibble(name = paste0("cov_width_", cov_tab$problem, "_pct"),
+             value = 100 * (cov_tab$se_ratio - 1)),
+      tibble(name = "cov_reps", value = max(cov_tab$R))
+    )
+
+  } else tibble(name = character(), value = numeric()),
+  tibble(name = "lambda_1se_train_ridge",
+         value = models[["RL-raw"]]$penalty),
+  tibble(name = "lambda_1se_all_ridge", value = cv0_all$lambda.1se),
+  # Same penalties in the parametrization of the paper: for the binomial fits
+  # the eq-(2) lambda equals lambda_glmnet, for the multinomial ones it is
+  # halved.
+  tibble(name = "lambda_eln_train_ridge",
+         value = models[["RL-raw"]]$penalty),
+  tibble(name = "lambda_eln_all_ridge", value = cv0_all$lambda.1se),
+  tibble(name = "n_nonzero_lasso", value = nrow(las_coefs)),
+  tibble(name = "n_signif_bh", value = n_signif),
+  tibble(name = "n_signif_marginal", value = n_signif_marginal),
+  tibble(name = "null_expected", value = null_expected),
+  tibble(name = "z_fcr", value = fcr_all$z_fcr),
+  tibble(name = "z_fcr_multi", value = fcr_multi$z_fcr),
+  # Correlations of selected markers with filtered-out companions quoted in
+  # the marker discussions, from the correlate chunks
+  {
+
+    corr_of <- function(df, m, cvar)
+      df$rho[df$marker == m & df$correlate == cvar]
+    tibble(
+      name = c("corr_lown_ambitus", "corr_vadesc_twin",
+               "corr_vadesc_octaves", "corr_h2sd_vi", "corr_h2sd_1sd",
+               "corr_h2sd_iv", "corr_dyn_oboe"),
+      value = c(
+        corr_of(corr_bin, "SoundVa_LowestNoteIndex", "PartVa_Ambitus"),
+        corr_of(corr_bin, "SoundVa_DescendingIntervallicStd",
+                "PartVa_DescendingIntervallicStd"),
+        corr_of(corr_bin, "SoundVa_DescendingIntervallicStd",
+                "PartVa_IntervalP.8_Per"),
+        corr_of(corr_bin, "Harmony_Chords_Grouping_2SD_Per",
+                "Harmony_Numerals_vi_Per"),
+        corr_of(corr_bin, "Harmony_Chords_Grouping_2SD_Per",
+                "Harmony_Chords_Grouping_1SD_Per"),
+        corr_of(corr_bin, "Harmony_Chords_Grouping_2SD_Per",
+                "Harmony_Numerals_IV_Per"),
+        corr_of(corr_multi, "Score_DynMean_weighted",
+                "PartOb_IntervallicStd")
+      )
+    )
+
+  },
+  tibble(name = "max_pct_change",
+         value = max(abs(exp(signif_df$estimate) - 1) * 100)),
+  comparison_numbers(comparison_tab,
+                     cols = c("Acc", "AUC", "F1", "p_rl", "p_f1_rl", "p_mc",
+                              "p_f1_mc")),
+  # Largest p-value against the MC baseline over all trained models, metrics,
+  # and problems, quoted as the blanket bound of the Results.
+  tibble(name = "p_mc_max",
+         value = max(c(comparison_tab$p_mc, comparison_tab$p_f1_mc,
+                       comparison_multi$p_mc, comparison_multi$p_f1_mc,
+                       comparison_ale$p_mc, comparison_ale$p_f1_mc),
+                     na.rm = TRUE)),
+  tibble(name = paste0("p_perez_", names(unk_arias)),
+         value = unk_pred$p_perez),
+  tibble(name = paste0("p_ci_low_", names(unk_arias)),
+         value = unk_pred$p_ci_low),
+  tibble(name = paste0("p_ci_up_", names(unk_arias)),
+         value = unk_pred$p_ci_up),
+  tibble(name = paste0("p_galuppi_", names(unk_arias)),
+         value = unk_pred$p_galuppi),
+  tibble(name = paste0("p_galuppi_ci_low_", names(unk_arias)),
+         value = unk_pred$p_galuppi_ci_low),
+  tibble(name = paste0("p_galuppi_ci_up_", names(unk_arias)),
+         value = unk_pred$p_galuppi_ci_up),
+  tibble(name = paste0("unk_prob_train_", names(unk_arias)),
+         value = unname(unk_prob_train)),
+  tibble(name = "multi_n_known", value = nrow(gpm_all)),
+  tibble(name = "multi_n_train", value = nrow(gpm_train)),
+  tibble(name = "multi_n_test", value = nrow(gpm_test)),
+  tibble(name = "multi_p_train", value = ncol(gpm_train_clean) - 1),
+  tibble(name = "multi_p_all", value = ncol(gpm_all_clean_all) - 1),
+  comparison_numbers(comparison_multi, prefix = "multi_",
+                     cols = c("Acc", "F1", "p_rl", "p_f1_rl", "p_mc",
+                              "p_f1_mc")),
+  tibble(name = paste0("multi_recall_", recall_names),
+         value = unname(multi_recalls)),
+  tibble(name = "multi_n_bach_test", value = sum(cmm[, col_of(cmm, "Bach")])),
+  tibble(name = "multi_n_bach_as_galuppi",
+         value = cmm[row_of(cmm, "Galuppi"), col_of(cmm, "Bach")]),
+  tibble(name = "multi_n_bach_as_hasse",
+         value = cmm[row_of(cmm, "Hasse"), col_of(cmm, "Bach")]),
+  tibble(name = "multi_n_manna_test",
+         value = sum(cmm[, col_of(cmm, "Manna")])),
+  tibble(name = "multi_n_manna_as_galuppi",
+         value = cmm[row_of(cmm, "Galuppi"), col_of(cmm, "Manna")]),
+  tibble(name = "multi_n_manna_as_hasse",
+         value = cmm[row_of(cmm, "Hasse"), col_of(cmm, "Manna")]),
+  tibble(name = "multi_n_galuppi_test",
+         value = sum(cmm[, col_of(cmm, "Galuppi")])),
+  tibble(name = "multi_n_galuppi_as_hasse",
+         value = cmm[row_of(cmm, "Hasse"), col_of(cmm, "Galuppi")]),
+  tibble(name = "multi_lambda_1se", value = cv_multi_all$lambda.1se),
+  tibble(name = "multi_lambda_eln", value = cv_multi_all$lambda.1se / 2),
+  # Penalty of the train-fitted ridge, the one behind the test metrics
+  tibble(name = "multi_lambda_1se_train",
+         value = models_multi[["RL"]]$penalty),
+  tibble(name = "multi_lambda_eln_train",
+         value = models_multi[["RL"]]$penalty / 2),
+  tibble(name = paste0("multi_diff_galuppi_hasse_", multi_diff$aria_id),
+         value = multi_diff$diff),
+  # The log-odds contrasts carry the tests, the differences are effect sizes
+  tibble(name = paste0("multi_lo_galuppi_hasse_", multi_diff$aria_id),
+         value = multi_diff$logodds),
+  tibble(name = paste0("multi_lo_cilow_galuppi_hasse_", multi_diff$aria_id),
+         value = multi_diff$logodds_ci_low),
+  tibble(name = paste0("multi_lo_ciup_galuppi_hasse_", multi_diff$aria_id),
+         value = multi_diff$logodds_ci_up),
+  tibble(name = paste0("multi_lo_galuppi_manna_", multi_diff_manna$aria_id),
+         value = multi_diff_manna$logodds),
+  tibble(name = paste0("multi_lo_cilow_galuppi_manna_",
+                       multi_diff_manna$aria_id),
+         value = multi_diff_manna$logodds_ci_low),
+  tibble(name = paste0("multi_lo_ciup_galuppi_manna_",
+                       multi_diff_manna$aria_id),
+         value = multi_diff_manna$logodds_ci_up),
+  tibble(name = "multi_n_signif", value = nrow(multi_signif)),
+  tibble(name = "multi_n_signif_marginal", value = multi_n_signif_marginal),
+  tibble(name = paste0("multi_prob_train_", gpm_unk$AriaId),
+         value = unname(multi_prob_train)),
+  tibble(name = paste0("ale_prob_train_", gpa_unk$AriaId),
+         value = unname(ale_prob_train)),
+  multi_numbers,
+  tibble(name = "ale_n_known", value = nrow(gpa_all)),
+  tibble(name = "ale_n_train", value = nrow(gpa_train)),
+  tibble(name = "ale_n_test", value = nrow(gpa_test)),
+  tibble(name = "ale_p_train", value = ncol(gpa_train_clean) - 1),
+  tibble(name = "ale_p_all", value = ncol(gpa_all_clean_all) - 1),
+  comparison_numbers(comparison_ale, prefix = "ale_",
+                     cols = c("Acc", "F1", "p_rl", "p_f1_rl", "p_mc",
+                              "p_f1_mc")),
+  tibble(name = paste0("ale_recall_", ale_recall_names),
+         value = unname(ale_recalls)),
+  tibble(name = "ale_n_test_errors", value = sum(cma) - sum(diag(cma))),
+  tibble(name = "ale_n_err_jommelli",
+         value = sum(cma[row_of(cma, "Jommelli"), ]) -
+           cma[row_of(cma, "Jommelli"), col_of(cma, "Jommelli")]),
+  tibble(name = "ale_lambda_1se", value = cv_ale_all$lambda.1se),
+  tibble(name = "ale_lambda_eln", value = cv_ale_all$lambda.1se / 2),
+  tibble(name = paste0("ale_diff_galuppi_jommelli_", ale_diff$aria_id),
+         value = ale_diff$diff),
+  tibble(name = paste0("ale_lo_galuppi_jommelli_", ale_diff$aria_id),
+         value = ale_diff$logodds),
+  tibble(name = paste0("ale_lo_cilow_galuppi_jommelli_", ale_diff$aria_id),
+         value = ale_diff$logodds_ci_low),
+  tibble(name = paste0("ale_lo_ciup_galuppi_jommelli_", ale_diff$aria_id),
+         value = ale_diff$logodds_ci_up),
+  ale_numbers,
+  # Percentiles of the doubtful arias, from the doubtful-percentiles chunk
+  {
+
+    # The dot marks descending intervals in the musif names (IntervalM.2 vs
+    # IntervalM2); encode it as "Desc" so the two directions do not collide
+    pctl_names <- paste0("pctl_", doubtful$AriaId, "_",
+                         gsub("[^A-Za-z0-9]", "",
+                              gsub("\\.", "Desc", doubtful$marker)))
+    stopifnot(!any(duplicated(pctl_names)))
+    tibble(name = pctl_names, value = round(100 * doubtful$pctl_galuppi))
+
+  },
+  # Exemplar-aria feature values quoted in the Discussion, from the
+  # exemplar-values chunks, with the composer means of the same markers.
+  # Shares become percentages; the dynamic levels stay in their own scale.
+  {
+
+    ex_val <- function(id, mk) vals$value[vals$AriaId == id &
+                                            vals$marker == mk]
+    ex_mean <- function(mk, cl) means[[cl]][means$marker == mk]
+    sc_oct <- "Score_IntervalP.8_Per"
+    va_thirds <- "SoundVa_IntervalM3_Per"
+    sd_all <- "Harmony_Chords_Grouping_2SD_Per"
+    sd_min <- "Harmony_Chords_Grouping_1sd_Per"
+    vi_chord <- "Harmony_Chord_vi_Per"
+    dyn <- "Score_DynMean_weighted"
+    # AriaIds: 2035 = Galuppi's "Così stupisce e cade", 263 = Perez's "Quel
+    # nocchier", 1144 = Galuppi's "Son regina e sono amante", 771 = Galuppi's
+    # "La face", 197 = Hasse's "Vivi superbo e regna"
+    ex_tab <- tibble(
+      name = c("ex_cosi_scoreoct_pct", "ex_gal_scoreoct_pct",
+               "ex_perez_scoreoct_pct",
+               "ex_quelnocchier_vathirds_pct", "ex_perez_vathirds_pct",
+               "ex_gal_vathirds_pct",
+               "ex_sonregina_sd_pct", "ex_gal_sd_pct", "ex_perez_sd_pct",
+               "ex_sonregina_sdminor_pct", "ex_gal_sdminor_pct",
+               "ex_sonregina_vi_pct", "ex_gal_vi_pct", "ex_perez_vi_pct",
+               "ex_dyn_laface", "ex_dyn_gal",
+               "ex_dyn_vivisuperbo", "ex_dyn_hasse"),
+      value = c(100 * ex_val(2035, sc_oct),
+                100 * ex_mean(sc_oct, "mean_galuppi"),
+                100 * ex_mean(sc_oct, "mean_perez"),
+                100 * ex_val(263, va_thirds),
+                100 * ex_mean(va_thirds, "mean_perez"),
+                100 * ex_mean(va_thirds, "mean_galuppi"),
+                100 * ex_val(1144, sd_all),
+                100 * ex_mean(sd_all, "mean_galuppi"),
+                100 * ex_mean(sd_all, "mean_perez"),
+                100 * ex_val(1144, sd_min),
+                100 * ex_mean(sd_min, "mean_galuppi"),
+                100 * ex_val(1144, vi_chord),
+                100 * ex_mean(vi_chord, "mean_galuppi"),
+                100 * ex_mean(vi_chord, "mean_perez"),
+                ex_val(771, dyn), ex_mean(dyn, "mean_galuppi"),
+                ex_val(197, dyn), ex_mean(dyn, "mean_hasse"))
+    )
+    stopifnot(!anyNA(ex_tab$value))
+    ex_tab
+
+  }
+) |>
+  mutate(value = as.character(value)) |>
+  bind_rows(
+    # Votes as surname initials, so the manuscript table hardcodes nothing
+    tibble(name = paste0("vote_",
+                         rep(c("ll", "rl", "rf", "automl"),
+                             each = nrow(unk_votes)),
+                         "_", rep(names(unk_arias), times = 4)),
+           value = unlist(lapply(unk_votes[c("LL", "RL", "RF", "AutoML")],
+                                 function(v)
+                                   substr(sub(".* ", "",
+                                              as.character(v)), 1, 1)),
+                          use.names = FALSE)),
+    # Algorithm family of the AutoML leader in the Demofoonte problem, read
+    # off the h2o model id of the leader (e.g., "DeepLearning_grid_3_..."),
+    # as a noun phrase ready for the prose
+    tibble(name = "multi_automl_leader",
+           value = c(DeepLearning = "a feed-forward neural network",
+                     GBM = "a gradient boosting machine",
+                     XGBoost = "an XGBoost model", DRF = "a random forest",
+                     XRT = "an extremely randomised trees forest",
+                     GLM = "a regularised linear model",
+                     StackedEnsemble = "a stacked ensemble")[[
+             sub("_.*", "", models_multi[["AutoML"]]$params)]]),
+    comparison_numbers(comparison_tab,
+                       cols = c("ci_rl", "ci_f1_rl", "ci_mc", "ci_f1_mc")),
+    comparison_numbers(comparison_multi, prefix = "multi_",
+                       cols = c("ci_rl", "ci_f1_rl", "ci_mc", "ci_f1_mc")),
+    comparison_numbers(comparison_ale, prefix = "ale_",
+                       cols = c("ci_rl", "ci_f1_rl", "ci_mc", "ci_f1_mc")),
+    # Mean share of the tonic degree in the violas, over the five-class
+    # corpus, for the Galuppi--Hasse contrast of the Discussion
+    tibble(name = c("ex_gal_vadeg1_pct", "ex_hasse_vadeg1_pct"),
+           value = as.character(
+             100 * sapply(c("Baldassare Galuppi", "Johann Adolph Hasse"),
+                          function(cl)
+                            mean(gpm$PartVa_Degree1_Per_relative[
+                              gpm$Composer == cl], na.rm = TRUE)))),
+    # Tempo annotation, for the footnote of the Discussion. gp_all and
+    # gp_unk together are the arias of gp.csv.
+    tibble(name = c("n_no_tempo", "n_tempo_fast", "n_tempo_moderate",
+                    "n_tempo_slow"),
+           value = as.character(c(
+             sum(is.na(gp_csv$Tempo) | gp_csv$Tempo == ""),
+             sum(gp_csv$TempoGrouped2 == "Fast", na.rm = TRUE),
+             sum(gp_csv$TempoGrouped2 == "Moderate", na.rm = TRUE),
+             sum(gp_csv$TempoGrouped2 == "Slow", na.rm = TRUE)))),
+    # Viola doubling, from the viola-doubling chunk
+    tibble(name = c("dbl_gal_pct", "dbl_perez_pct", "dbl_hasse_pct",
+                    "dbl_1239_pct", "dbl_1241_pct", "dbl_1242_pct",
+                    "dbl_laface_pct", "dbl_vivisuperbo_pct"),
+           value = as.character(c(dbl_of("Baldassare Galuppi"),
+                                  dbl_of("Davide Perez"),
+                                  dbl_of("Johann Adolph Hasse"),
+                                  dbl_aria("1239"), dbl_aria("1241"),
+                                  dbl_aria("1242"), dbl_aria("0771"),
+                                  dbl_aria("0197")))),
+    # Tonic inversions, from the tonic-inversions chunk
+    tibble(name = c("n_tonic_gal", "n_tonic_perez",
+                    "inv_gal_first_pct", "inv_perez_first_pct",
+                    "inv_gal_second_pct", "inv_perez_second_pct"),
+           value = as.character(c(inv_of("Baldassare Galuppi", "tonics"),
+                                  inv_of("Davide Perez", "tonics"),
+                                  inv_of("Baldassare Galuppi", "first"),
+                                  inv_of("Davide Perez", "first"),
+                                  inv_of("Baldassare Galuppi", "second"),
+                                  inv_of("Davide Perez", "second"))))
+  )
+write.csv(paper_numbers, file = "paper_numbers.csv", row.names = FALSE)
+```
+
+```{r paper-macros}
+# The \gp<Name> macros for \input{paper_numbers.tex}, so the manuscript
+# numbers update with every render (methods.R).
+macros <- write_paper_macros(paper_numbers, file = "../paper_numbers.tex")
+head(macros, 10)
+```
+
+# Session information
+
+```{r session}
+# Release the h2o cluster and record the session
+h2o::h2o.shutdown(prompt = FALSE)
+sessionInfo()
+```
